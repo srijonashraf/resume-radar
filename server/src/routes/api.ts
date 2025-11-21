@@ -32,7 +32,7 @@ router.get("/guest-status", async (req, res) => {
 });
 
 // Resume Analysis - Allows guest users (1 analysis limit)
-router.post("/analyze", optionalAuth, async (req, res) => {
+router.post("/analyze", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { resumeText } = req.body;
     if (!resumeText) {
@@ -61,7 +61,7 @@ router.post("/analyze", optionalAuth, async (req, res) => {
 });
 
 // Job Match - Requires authentication
-router.post("/job-match", requireAuth, async (req, res) => {
+router.post("/job-match", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { resumeText, jobDescription } = req.body;
     if (!resumeText || !jobDescription) {
@@ -79,7 +79,7 @@ router.post("/job-match", requireAuth, async (req, res) => {
 });
 
 // Career Map - Requires authentication
-router.post("/career-map", requireAuth, async (req, res) => {
+router.post("/career-map", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { resumeText } = req.body;
     if (!resumeText) {
@@ -95,7 +95,7 @@ router.post("/career-map", requireAuth, async (req, res) => {
 });
 
 // Smart Rewrite - Requires authentication
-router.post("/rewrite", requireAuth, async (req, res) => {
+router.post("/rewrite", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { originalText, jobDescription } = req.body;
     if (!originalText || !jobDescription) {
@@ -115,9 +115,9 @@ router.post("/rewrite", requireAuth, async (req, res) => {
 // ==================== HISTORY ROUTES ====================
 
 // Get user's analysis history
-router.get("/history", requireAuth, async (req, res) => {
+router.get("/history", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: "User not authenticated" });
       return;
@@ -133,9 +133,9 @@ router.get("/history", requireAuth, async (req, res) => {
 });
 
 // Create new history entry - Only for authenticated users
-router.post("/history", requireAuth, async (req, res) => {
+router.post("/history", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: "User not authenticated" });
       return;
@@ -182,9 +182,9 @@ router.post("/history", requireAuth, async (req, res) => {
 });
 
 // Delete history entry
-router.delete("/history/:id", requireAuth, async (req, res) => {
+router.delete("/history/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = (req as AuthRequest).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: "User not authenticated" });
       return;
