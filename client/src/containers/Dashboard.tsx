@@ -10,6 +10,7 @@ import JobMatchResults from "../components/JobMatchResults";
 import AnalysisHistory from "../components/AnalysisHistory";
 import CareerMap from "../components/CareerMap";
 import SmartEditor from "../components/SmartEditor";
+import GuestBanner from "../components/GuestBanner";
 import Logo from "../components/Logo";
 import { v4 as uuidv4 } from "uuid";
 import { fetchHistory, saveHistory } from "../services/history";
@@ -25,10 +26,13 @@ const Dashboard = () => {
   const analysisResults = useStore((state) => state.analysisResults);
   const jobMatchResults = useStore((state) => state.jobMatchResults);
   const analysisHistory = useStore((state) => state.analysisHistory);
+  const isGuest = useStore((state) => state.isGuest);
+  const guestMessage = useStore((state) => state.guestMessage);
   const setAnalysisResults = useStore((state) => state.setAnalysisResults);
   const addAnalysisHistory = useStore((state) => state.addAnalysisHistory);
   const setAnalysisHistory = useStore((state) => state.setAnalysisHistory);
   const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
+  const setGuestMode = useStore((state) => state.setGuestMode);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -77,23 +81,37 @@ const Dashboard = () => {
           const results = await analyzeResume(resumeData.rawText);
           setAnalysisResults(results);
 
-          // Add to history
-          const historyEntry: AnalysisHistoryEntry = {
-            id: uuidv4(),
-            date: new Date(),
-            resumeData,
-            analysisResults: results,
-          };
-
-          addAnalysisHistory(historyEntry);
-
-          // Save to Supabase if user is logged in
-          if (user) {
-            await saveHistory(historyEntry);
+          // Handle guest mode if present in response
+          if (results.isGuest) {
+            setGuestMode(true, results.message);
           }
-        } catch (err) {
+
+          // Add to history only if not a guest or if guest has remaining analyses
+          if (!results.isGuest || results.remainingAnalyses > 0) {
+            const historyEntry: AnalysisHistoryEntry = {
+              id: uuidv4(),
+              date: new Date(),
+              resumeData,
+              analysisResults: results,
+            };
+
+            addAnalysisHistory(historyEntry);
+
+            // Save to Supabase if user is logged in (not a guest)
+            if (user) {
+              await saveHistory(historyEntry);
+            }
+          }
+        } catch (err: any) {
           console.error("Error analyzing resume:", err);
-          setError("Failed to analyze resume. Ensure backend is running.");
+
+          // Handle guest limit errors
+          if (err.response?.status === 429 && err.response?.data?.requiresLogin) {
+            setError(err.response.data.message);
+            setGuestMode(true, err.response.data.message);
+          } else {
+            setError("Failed to analyze resume. Please try again.");
+          }
         } finally {
           setIsAnalyzing(false);
         }
@@ -305,19 +323,46 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <>
+                  {/* Guest Banner */}
+                  {isGuest && guestMessage && (
+                    <GuestBanner
+                      message={guestMessage}
+                      onClose={() => setGuestMode(false)}
+                    />
+                  )}
+
                   {analysisResults && (
                     <AnalysisResults analysisResults={analysisResults} />
                   )}
 
-                  <CareerMap />
+                  {/* Only show advanced features for authenticated users */}
+                  {user && (
+                    <>
+                      <CareerMap />
 
-                  {!jobMatchResults ? (
-                    <JobDescriptionInput />
-                  ) : (
-                    <JobMatchResults jobMatchResults={jobMatchResults} />
+                      {!jobMatchResults ? (
+                        <JobDescriptionInput />
+                      ) : (
+                        <JobMatchResults jobMatchResults={jobMatchResults} />
+                      )}
+
+                      <SmartEditor />
+                    </>
                   )}
 
-                  <SmartEditor />
+                  {!user && isGuest && (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400 mb-4">
+                        Want to unlock advanced features like job matching and career mapping?
+                      </p>
+                      <Link
+                        to="/signup"
+                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-105"
+                      >
+                        Create Free Account
+                      </Link>
+                    </div>
+                  )}
 
                   {analysisHistory.length > 0 && <AnalysisHistory />}
                 </>

@@ -27,6 +27,12 @@ export const analyzeResume = async (resumeText: string) => {
   return response.data;
 };
 
+// Check guest status
+export const checkGuestStatus = async () => {
+  const response = await api.get("/guest-status");
+  return response.data;
+};
+
 export const generateCareerMap = async (resumeText: string) => {
   const response = await api.post("/career-map", { resumeText });
   return response.data;

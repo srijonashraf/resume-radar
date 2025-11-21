@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, optionalAuth, AuthRequest } from "../middleware/auth";
 import {
   analyzeResume,
   generateCareerMap,
@@ -14,23 +14,53 @@ router.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Resume Analysis
-router.post("/analyze", requireAuth, async (req, res) => {
+// Check guest usage status
+router.get("/guest-status", async (req, res) => {
+  try {
+    const { checkGuestUsage } = await import("../services/guestService");
+    const guestUsage = await checkGuestUsage(req);
+
+    res.json({
+      allowed: guestUsage.allowed,
+      message: guestUsage.message,
+      requiresLogin: !guestUsage.allowed
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to check guest status" });
+  }
+});
+
+// Resume Analysis - Allows guest users (1 analysis limit)
+router.post("/analyze", optionalAuth, async (req, res) => {
   try {
     const { resumeText } = req.body;
     if (!resumeText) {
       res.status(400).json({ error: "Resume text is required" });
       return;
     }
+
     const result = await analyzeResume(resumeText);
-    res.json(result);
+
+    // Add guest usage info if applicable
+    const response: any = { ...result };
+    if (req.guestUsage && !req.user) {
+      response.isGuest = true;
+      response.guestId = req.guestUsage.guestId;
+      response.remainingAnalyses = Math.max(0, 1 - (req.guestUsage.analysisCount || 0));
+      response.message = req.guestUsage.analysisCount === 1
+        ? "You've used your free analysis. Login to analyze more resumes."
+        : null;
+    }
+
+    res.json(response);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to analyze resume" });
   }
 });
 
-// Job Match
+// Job Match - Requires authentication
 router.post("/job-match", requireAuth, async (req, res) => {
   try {
     const { resumeText, jobDescription } = req.body;
@@ -48,7 +78,7 @@ router.post("/job-match", requireAuth, async (req, res) => {
   }
 });
 
-// Career Map
+// Career Map - Requires authentication
 router.post("/career-map", requireAuth, async (req, res) => {
   try {
     const { resumeText } = req.body;
@@ -64,7 +94,7 @@ router.post("/career-map", requireAuth, async (req, res) => {
   }
 });
 
-// Smart Rewrite
+// Smart Rewrite - Requires authentication
 router.post("/rewrite", requireAuth, async (req, res) => {
   try {
     const { originalText, jobDescription } = req.body;
@@ -102,7 +132,7 @@ router.get("/history", requireAuth, async (req, res) => {
   }
 });
 
-// Create new history entry
+// Create new history entry - Only for authenticated users
 router.post("/history", requireAuth, async (req, res) => {
   try {
     const userId = (req as AuthRequest).user?.id;

@@ -33,6 +33,8 @@ interface StoreState {
   jobMatchResults: JobMatchResult | null;
   analysisHistory: AnalysisHistoryEntry[];
   jobDescription: string;
+  isGuest: boolean;
+  guestMessage: string | null;
   setResumeData: (data: ResumeData) => void;
   setAnalysisResults: (results: AnalysisResult) => void;
   setJobMatchResults: (results: JobMatchResult) => void;
@@ -41,6 +43,7 @@ interface StoreState {
   addAnalysisHistory: (entry: AnalysisHistoryEntry) => void;
   clearCurrentAnalysis: () => void;
   removeFromHistory: (id: string) => void;
+  setGuestMode: (isGuest: boolean, message?: string) => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -49,6 +52,8 @@ const useStore = create<StoreState>()((set) => ({
   jobMatchResults: null,
   analysisHistory: [],
   jobDescription: "",
+  isGuest: false,
+  guestMessage: null,
   setResumeData: (data) => set({ resumeData: data }),
   setAnalysisResults: (results) => set({ analysisResults: results }),
   setJobMatchResults: (results) => set({ jobMatchResults: results }),
@@ -64,11 +69,13 @@ const useStore = create<StoreState>()((set) => ({
       analysisResults: null,
       jobMatchResults: null,
       jobDescription: "",
+      guestMessage: null,
     }),
   removeFromHistory: (id) =>
     set((state) => ({
       analysisHistory: state.analysisHistory.filter((entry) => entry.id !== id),
     })),
+  setGuestMode: (isGuest, message) => set({ isGuest, guestMessage: message || null }),
 }));
 
 export { useStore };

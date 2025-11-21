@@ -9,6 +9,8 @@ const PdfUploader = () => {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setResumeData = useStore((state) => state.setResumeData);
+  const resumeData = useStore((state) => state.resumeData);
+  const isGuest = useStore((state) => state.isGuest);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -17,6 +19,12 @@ const PdfUploader = () => {
     // Check if file is a PDF
     if (file.type !== "application/pdf") {
       setError("Please upload a PDF file");
+      return;
+    }
+
+    // Check if guest has already analyzed a resume
+    if (isGuest && resumeData) {
+      setError("You've already used your free analysis. Please login to analyze more resumes.");
       return;
     }
 
