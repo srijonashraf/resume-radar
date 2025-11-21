@@ -15,16 +15,16 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-lg shadow-md p-6"
+      className="card p-6"
     >
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">
+      <h2 className="text-2xl font-bold text-white mb-6">
         Resume Analysis Results
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Radar Chart */}
-        <div className="bg-gray-50 rounded-lg p-4 items-center flex flex-col justify-center">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
+        <div className="bg-slate-950/50 rounded-xl p-4 items-center flex flex-col justify-center border border-slate-800">
+          <h3 className="text-lg font-semibold text-slate-300 mb-4">
             Score Breakdown
           </h3>
           <AnalysisRadarChart analysisResults={analysisResults} />
@@ -34,20 +34,22 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
         <div>
           {/* Suggestions */}
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            <h3 className="text-lg font-semibold text-slate-300 mb-3">
               Improvement Suggestions
             </h3>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {suggestions.map((suggestion, index) => (
                 <motion.li
                   key={index}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2, delay: index * 0.1 }}
-                  className="flex items-start"
+                  className="flex items-start p-3 bg-slate-800/50 rounded-lg border border-slate-700/50"
                 >
-                  <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-600">{suggestion}</span>
+                  <CheckCircleIcon className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
+                  <span className="text-slate-300 text-sm leading-relaxed">
+                    {suggestion}
+                  </span>
                 </motion.li>
               ))}
             </ul>
@@ -55,7 +57,7 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
 
           {/* Missing Skills */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            <h3 className="text-lg font-semibold text-slate-300 mb-3">
               Missing Skills
             </h3>
             <ul className="space-y-2">
@@ -65,10 +67,10 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2, delay: index * 0.1 }}
-                  className="flex items-start"
+                  className="flex items-center p-2 bg-red-900/10 rounded-lg border border-red-900/20"
                 >
-                  <XCircleIcon className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-600">{skill}</span>
+                  <XCircleIcon className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
+                  <span className="text-red-200 text-sm">{skill}</span>
                 </motion.li>
               ))}
             </ul>

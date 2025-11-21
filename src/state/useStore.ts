@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export interface ResumeData {
   file: File | null;
@@ -38,48 +37,38 @@ interface StoreState {
   setAnalysisResults: (results: AnalysisResult) => void;
   setJobMatchResults: (results: JobMatchResult) => void;
   setJobDescription: (description: string) => void;
+  setAnalysisHistory: (history: AnalysisHistoryEntry[]) => void;
   addAnalysisHistory: (entry: AnalysisHistoryEntry) => void;
   clearCurrentAnalysis: () => void;
   removeFromHistory: (id: string) => void;
 }
 
-const useStore = create<StoreState>()(
-  persist(
-    (set) => ({
+const useStore = create<StoreState>()((set) => ({
+  resumeData: null,
+  analysisResults: null,
+  jobMatchResults: null,
+  analysisHistory: [],
+  jobDescription: "",
+  setResumeData: (data) => set({ resumeData: data }),
+  setAnalysisResults: (results) => set({ analysisResults: results }),
+  setJobMatchResults: (results) => set({ jobMatchResults: results }),
+  setJobDescription: (description) => set({ jobDescription: description }),
+  setAnalysisHistory: (history) => set({ analysisHistory: history }),
+  addAnalysisHistory: (entry) =>
+    set((state) => ({
+      analysisHistory: [entry, ...state.analysisHistory], // Prepend new entry
+    })),
+  clearCurrentAnalysis: () =>
+    set({
       resumeData: null,
       analysisResults: null,
       jobMatchResults: null,
-      analysisHistory: [],
       jobDescription: "",
-      setResumeData: (data) => set({ resumeData: data }),
-      setAnalysisResults: (results) => set({ analysisResults: results }),
-      setJobMatchResults: (results) => set({ jobMatchResults: results }),
-      setJobDescription: (description) => set({ jobDescription: description }),
-      addAnalysisHistory: (entry) =>
-        set((state) => ({
-          analysisHistory: [...state.analysisHistory, entry],
-        })),
-      clearCurrentAnalysis: () =>
-        set({
-          resumeData: null,
-          analysisResults: null,
-          jobMatchResults: null,
-          jobDescription: "",
-        }),
-      removeFromHistory: (id) =>
-        set((state) => ({
-          analysisHistory: state.analysisHistory.filter(
-            (entry) => entry.id !== id
-          ),
-        })),
     }),
-    {
-      name: "resume-analyzer-storage",
-      partialize: (state) => ({
-        analysisHistory: state.analysisHistory,
-      }),
-    }
-  )
-);
+  removeFromHistory: (id) =>
+    set((state) => ({
+      analysisHistory: state.analysisHistory.filter((entry) => entry.id !== id),
+    })),
+}));
 
 export { useStore };
