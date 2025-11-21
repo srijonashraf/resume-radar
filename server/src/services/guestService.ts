@@ -1,5 +1,4 @@
 import pool from "../config/database";
-import { v4 as uuidv4 } from "uuid";
 
 export interface GuestAnalytics {
   id: string;
@@ -90,7 +89,7 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
     }
 
     // New guest user - create entry
-    const guestId = uuidv4();
+    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await createGuestEntry(guestId, ipAddress, macAddress, userAgent);
 
     return {
