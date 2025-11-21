@@ -89,7 +89,7 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
     }
 
     // New guest user - create entry
-    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     await createGuestEntry(guestId, ipAddress, macAddress, userAgent);
 
     return {
