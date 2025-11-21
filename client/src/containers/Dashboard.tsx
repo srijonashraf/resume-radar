@@ -54,6 +54,8 @@ const Dashboard = () => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
+        // Clear guest mode when user logs in
+        setGuestMode(false);
         loadHistory();
       } else {
         setAnalysisHistory([]);
@@ -61,7 +63,7 @@ const Dashboard = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [setAnalysisHistory]);
+  }, [setAnalysisHistory, setGuestMode]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -152,7 +154,7 @@ const Dashboard = () => {
                   </span>
                   <button
                     onClick={handleLogout}
-                    className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
+                    className="cursor-pointer text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
                   >
                     Logout
                   </button>
@@ -324,7 +326,7 @@ const Dashboard = () => {
               ) : (
                 <>
                   {/* Guest Banner */}
-                  {isGuest && guestMessage && (
+                  {isGuest && !user && guestMessage && (
                     <GuestBanner
                       message={guestMessage}
                       onClose={() => setGuestMode(false)}

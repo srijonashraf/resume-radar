@@ -7,6 +7,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -22,8 +23,11 @@ const Signup = () => {
     if (error) {
       setError(error.message);
     } else {
-      alert("Signup successful! Please check your email for verification.");
-      navigate("/login");
+      setShowSuccess(true);
+      // Auto-navigate after 4 seconds
+      setTimeout(() => {
+        navigate("/login");
+      }, 4000);
     }
     setLoading(false);
   };
@@ -44,7 +48,39 @@ const Signup = () => {
           </div>
         )}
 
-        <form onSubmit={handleSignup} className="space-y-5">
+        {showSuccess && (
+          <div className="bg-green-900/20 border border-green-900/50 text-green-300 p-4 rounded-lg mb-6 text-sm">
+            <div className="flex items-start">
+              <svg
+                className="w-5 h-5 text-green-400 mr-3 mt-0.5 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div>
+                <h4 className="font-semibold text-green-300 mb-1">
+                  Check your email!
+                </h4>
+                <p className="text-green-200">
+                  We've sent a verification link to{" "}
+                  <span className="font-medium">{email}</span>. Please check your inbox
+                  and click the link to activate your account.
+                </p>
+                <p className="text-green-300 text-xs mt-2">
+                  Redirecting to login page in a few seconds...
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!showSuccess && (
+          <form onSubmit={handleSignup} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Email Address
@@ -107,6 +143,7 @@ const Signup = () => {
             )}
           </button>
         </form>
+        )}
 
         <p className="mt-6 text-center text-sm text-slate-400">
           Already have an account?{" "}
