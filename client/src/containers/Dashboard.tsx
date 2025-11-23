@@ -132,6 +132,7 @@ const Dashboard = () => {
     setAnalysisResults,
     addAnalysisHistory,
     user,
+    setGuestMode,
   ]);
 
   const handleNewAnalysis = () => {
