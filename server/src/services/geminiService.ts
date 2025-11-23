@@ -15,23 +15,31 @@ export const analyzeResume = async (resumeText: string) => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
   const prompt = `
-    You are a professional resume analyzer. Analyze the following resume text.
-    1. Score the resume in terms of skills, experience, and formatting (scale of 1-10).
-    2. Provide suggestions for improvement.
-    3. Return ONLY a JSON object with NO markdown formatting, following this structure:
+    You are a professional resume analyzer. First, determine if the provided text is actually a resume/CV.
+    
+    IMPORTANT: If the text is NOT a resume (e.g., it's a book, article, random document, or has no professional information), 
+    return this exact structure:
     {
-      "skills": number,
-      "experience": number,
-      "format": number,
+      "error": "NOT_A_RESUME",
+      "message": "This document doesn't appear to be a resume. Please upload a valid resume containing your work experience, education, and skills."
+    }
+    
+    If it IS a valid resume, analyze it and return:
+    {
+      "skills": number (1-10),
+      "experience": number (1-10),
+      "format": number (1-10),
       "suggestions": string[],
       "missingSkills": string[]
     }
+    
+    Return ONLY a JSON object with NO markdown formatting.
     
     Resume text: ${resumeText}
   `;
 
   const result = await model.generateContent(prompt);
-  const response = await result.response;
+  const response = result.response;
   const text = response.text();
   return JSON.parse(cleanJSON(text));
 };

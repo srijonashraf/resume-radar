@@ -23,7 +23,7 @@ router.get("/guest-status", async (req, res) => {
     res.json({
       allowed: guestUsage.allowed,
       message: guestUsage.message,
-      requiresLogin: !guestUsage.allowed
+      requiresLogin: !guestUsage.allowed,
     });
   } catch (error) {
     console.error(error);
@@ -42,15 +42,25 @@ router.post("/analyze", optionalAuth, async (req: AuthRequest, res) => {
 
     const result = await analyzeResume(resumeText);
 
+    // Check if AI detected non-resume content
+    if (result.error === "NOT_A_RESUME") {
+      res.status(400).json({ error: result.message });
+      return;
+    }
+
     // Add guest usage info if applicable
     const response: any = { ...result };
     if (req.guestUsage && !req.user) {
       response.isGuest = true;
       response.guestId = req.guestUsage.guestId;
-      response.remainingAnalyses = Math.max(0, 1 - (req.guestUsage.analysisCount || 0));
-      response.message = req.guestUsage.analysisCount === 1
-        ? "You've used your free analysis. Login to analyze more resumes."
-        : null;
+      response.remainingAnalyses = Math.max(
+        0,
+        1 - (req.guestUsage.analysisCount || 0)
+      );
+      response.message =
+        req.guestUsage.analysisCount === 1
+          ? "You've used your free analysis. Login to analyze more resumes."
+          : null;
     }
 
     res.json(response);

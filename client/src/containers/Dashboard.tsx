@@ -108,9 +108,14 @@ const Dashboard = () => {
           console.error("Error analyzing resume:", err);
 
           // Handle guest limit errors
-          if (err.response?.status === 429 && err.response?.data?.requiresLogin) {
+          if (
+            err.response?.status === 429 &&
+            err.response?.data?.requiresLogin
+          ) {
             setError(err.response.data.message);
             setGuestMode(true, err.response.data.message);
+          } else if (err.code === "ERR_BAD_REQUEST") {
+            setError(err.response.data.error);
           } else {
             setError("Failed to analyze resume. Please try again.");
           }
@@ -141,7 +146,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-3">
               <Logo className="w-8 h-8 text-blue-500" />
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tight">
-                Resume Radar
+                ResumeRadar
               </h1>
             </div>
 
@@ -355,7 +360,8 @@ const Dashboard = () => {
                   {!user && isGuest && (
                     <div className="text-center py-8">
                       <p className="text-gray-400 mb-4">
-                        Want to unlock advanced features like job matching and career mapping?
+                        Want to unlock advanced features like job matching and
+                        career mapping?
                       </p>
                       <Link
                         to="/signup"
