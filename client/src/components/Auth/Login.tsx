@@ -32,7 +32,7 @@ const Login = () => {
       <div className="card p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">
-            Resume Radar
+            ResumeRadar
           </h1>
           <p className="text-slate-400 text-sm">Sign in to your account</p>
         </div>

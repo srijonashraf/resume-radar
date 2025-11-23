@@ -24,7 +24,9 @@ const PdfUploader = () => {
 
     // Check if guest has already analyzed a resume
     if (isGuest && resumeData) {
-      setError("You've already used your free analysis. Please login to analyze more resumes.");
+      setError(
+        "You've already used your free analysis. Please login to analyze more resumes."
+      );
       return;
     }
 
