@@ -4,24 +4,23 @@ import { useStore } from "../../store/useStore";
 import { toast } from "sonner";
 import {
   BriefcaseIcon,
-  DocumentArrowUpIcon,
   SparklesIcon,
   ClipboardDocumentIcon,
-  CheckIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { compareWithJobDescription } from "../../services/api";
 import { smartRewrite } from "../../services/api";
 
 const JobAnalysisPanel = () => {
-  const { jobDescription } = useStore((state) => state.jobDescription);
+  const jobDescription = useStore((state) => state.jobDescription);
   const [jobInput, setJobInput] = useState(jobDescription || "");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [jobMatchResults, setJobMatchResults] = useState<any>(null);
   const [selectedText, setSelectedText] = useState("");
   const [variations, setVariations] = useState<any[]>([]);
-  const [activeSection, setActiveSection] = useState<"input" | "editor">("input");
+  const [activeSection, setActiveSection] = useState<"input" | "editor">(
+    "input"
+  );
 
   const getMatchColor = (score: number) => {
     if (score >= 80) return "text-green-400";
@@ -40,20 +39,19 @@ const JobAnalysisPanel = () => {
   const handleJobAnalysis = async () => {
     if (!jobInput.trim()) {
       toast.error("Please enter a job description", {
-        description: "Job description is required for analysis"
+        description: "Job description is required for analysis",
       });
       return;
     }
 
     try {
       setIsAnalyzing(true);
-      setError(null);
 
       // Get resume data from store
       const resumeData = useStore.getState().resumeData;
       if (!resumeData?.rawText) {
         toast.error("No resume data found", {
-          description: "Please upload a resume first"
+          description: "Please upload a resume first",
         });
         return;
       }
@@ -68,12 +66,12 @@ const JobAnalysisPanel = () => {
       useStore.getState().setJobDescription(jobInput);
 
       toast.success("Job analysis completed!", {
-        description: "Your resume has been compared with the job description"
+        description: "Your resume has been compared with the job description",
       });
     } catch (error: any) {
       console.error("Job match analysis error:", error);
       toast.error("Failed to analyze job description", {
-        description: error.message || "Please try again"
+        description: error.message || "Please try again",
       });
     } finally {
       setIsAnalyzing(false);
@@ -83,14 +81,14 @@ const JobAnalysisPanel = () => {
   const handleRewrite = async () => {
     if (!selectedText.trim()) {
       toast.error("Please select text to rewrite", {
-        description: "Select some text from your resume to improve it"
+        description: "Select some text from your resume to improve it",
       });
       return;
     }
 
     if (!jobInput.trim()) {
       toast.error("Please enter a job description first", {
-        description: "Job description is required for smart rewriting"
+        description: "Job description is required for smart rewriting",
       });
       return;
     }
@@ -102,13 +100,13 @@ const JobAnalysisPanel = () => {
       if (result && result.variations && result.variations.length > 0) {
         setVariations(result.variations);
         toast.success("Smart rewrite completed!", {
-          description: "Enhanced suggestions generated for your resume text"
+          description: "Enhanced suggestions generated for your resume text",
         });
       }
     } catch (error: any) {
       console.error("Smart rewrite error:", error);
       toast.error("Failed to rewrite text", {
-        description: error.message || "Please try again"
+        description: error.message || "Please try again",
       });
     } finally {
       setIsAnalyzing(false);
@@ -129,9 +127,12 @@ const JobAnalysisPanel = () => {
             <BriefcaseIcon className="h-8 w-8 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-white mb-1">Job Analysis & Smart Editor</h3>
+            <h3 className="text-xl font-bold text-white mb-1">
+              Job Analysis & Smart Editor
+            </h3>
             <p className="text-slate-300">
-              Compare your resume with job descriptions and use AI-powered text enhancement
+              Compare your resume with job descriptions and use AI-powered text
+              enhancement
             </p>
           </div>
         </div>
@@ -249,13 +250,19 @@ const JobAnalysisPanel = () => {
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-400 text-sm">Overall Match</span>
-                  <span className={`text-2xl font-bold ${getMatchColor(jobMatchResults.matchScore)}`}>
+                  <span
+                    className={`text-2xl font-bold ${getMatchColor(
+                      jobMatchResults.matchScore
+                    )}`}
+                  >
                     {jobMatchResults.matchScore}%
                   </span>
                 </div>
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full transition-all ${getMatchBgColor(jobMatchResults.matchScore)}`}
+                    className={`h-2 rounded-full transition-all ${getMatchBgColor(
+                      jobMatchResults.matchScore
+                    )}`}
                     style={{ width: `${jobMatchResults.matchScore}%` }}
                   ></div>
                 </div>
@@ -264,13 +271,19 @@ const JobAnalysisPanel = () => {
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-400 text-sm">Skills Match</span>
-                  <span className={`text-2xl font-bold ${getMatchColor(jobMatchResults.skillsScore)}`}>
+                  <span
+                    className={`text-2xl font-bold ${getMatchColor(
+                      jobMatchResults.skillsScore
+                    )}`}
+                  >
                     {jobMatchResults.skillsScore}%
                   </span>
                 </div>
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full transition-all ${getMatchBgColor(jobMatchResults.skillsScore)}`}
+                    className={`h-2 rounded-full transition-all ${getMatchBgColor(
+                      jobMatchResults.skillsScore
+                    )}`}
                     style={{ width: `${jobMatchResults.skillsScore}%` }}
                   ></div>
                 </div>
@@ -278,14 +291,22 @@ const JobAnalysisPanel = () => {
 
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">Experience Match</span>
-                  <span className={`text-2xl font-bold ${getMatchColor(jobMatchResults.experienceScore)}`}>
+                  <span className="text-slate-400 text-sm">
+                    Experience Match
+                  </span>
+                  <span
+                    className={`text-2xl font-bold ${getMatchColor(
+                      jobMatchResults.experienceScore
+                    )}`}
+                  >
                     {jobMatchResults.experienceScore}%
                   </span>
                 </div>
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full transition-all ${getMatchBgColor(jobMatchResults.experienceScore)}`}
+                    className={`h-2 rounded-full transition-all ${getMatchBgColor(
+                      jobMatchResults.experienceScore
+                    )}`}
                     style={{ width: `${jobMatchResults.experienceScore}%` }}
                   ></div>
                 </div>
@@ -294,56 +315,78 @@ const JobAnalysisPanel = () => {
 
             {/* Analysis Details */}
             <div className="card p-6">
-              <h4 className="text-lg font-semibold text-white mb-4">Analysis Results</h4>
+              <h4 className="text-lg font-semibold text-white mb-4">
+                Analysis Results
+              </h4>
               {jobMatchResults.analysis && (
                 <div className="space-y-4">
-                  {jobMatchResults.analysis.strengths && jobMatchResults.analysis.strengths.length > 0 && (
-                    <div>
-                      <h5 className="text-green-400 font-medium mb-2">Strengths</h5>
-                      <ul className="space-y-2">
-                        {jobMatchResults.analysis.strengths.map((item: any, index: number) => (
-                          <li
-                            key={index}
-                            className="flex items-start p-3 bg-green-900/20 border border-green-800/30 rounded-lg"
-                          >
-                            <CheckCircleIcon className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <span className="text-green-200 text-sm">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {jobMatchResults.analysis.strengths &&
+                    jobMatchResults.analysis.strengths.length > 0 && (
+                      <div>
+                        <h5 className="text-green-400 font-medium mb-2">
+                          Strengths
+                        </h5>
+                        <ul className="space-y-2">
+                          {jobMatchResults.analysis.strengths.map(
+                            (item: any, index: number) => (
+                              <li
+                                key={index}
+                                className="flex items-start p-3 bg-green-900/20 border border-green-800/30 rounded-lg"
+                              >
+                                <CheckCircleIcon className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
+                                <span className="text-green-200 text-sm">
+                                  {item}
+                                </span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
 
-                  {jobMatchResults.analysis.gaps && jobMatchResults.analysis.gaps.length > 0 && (
-                    <div>
-                      <h5 className="text-orange-400 font-medium mb-2">Gaps to Address</h5>
-                      <ul className="space-y-2">
-                        {jobMatchResults.analysis.gaps.map((item: any, index: number) => (
-                          <li
-                            key={index}
-                            className="flex items-start p-3 bg-orange-900/20 border border-orange-800/30 rounded-lg"
-                          >
-                            <ClipboardDocumentIcon className="h-5 w-5 text-orange-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <span className="text-orange-200 text-sm">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {jobMatchResults.analysis.gaps &&
+                    jobMatchResults.analysis.gaps.length > 0 && (
+                      <div>
+                        <h5 className="text-orange-400 font-medium mb-2">
+                          Gaps to Address
+                        </h5>
+                        <ul className="space-y-2">
+                          {jobMatchResults.analysis.gaps.map(
+                            (item: any, index: number) => (
+                              <li
+                                key={index}
+                                className="flex items-start p-3 bg-orange-900/20 border border-orange-800/30 rounded-lg"
+                              >
+                                <ClipboardDocumentIcon className="h-5 w-5 text-orange-400 mr-3 mt-0.5 flex-shrink-0" />
+                                <span className="text-orange-200 text-sm">
+                                  {item}
+                                </span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
 
                   {jobMatchResults.analysis.recommendations && (
                     <div>
-                      <h5 className="text-blue-400 font-medium mb-2">Recommendations</h5>
+                      <h5 className="text-blue-400 font-medium mb-2">
+                        Recommendations
+                      </h5>
                       <ul className="space-y-2">
-                        {jobMatchResults.analysis.recommendations.map((item: any, index: number) => (
-                          <li
-                            key={index}
-                            className="flex items-start p-3 bg-blue-900/20 border border-blue-800/30 rounded-lg"
-                          >
-                            <SparklesIcon className="h-5 w-5 text-blue-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <span className="text-blue-200 text-sm">{item}</span>
-                          </li>
-                        ))}
+                        {jobMatchResults.analysis.recommendations.map(
+                          (item: any, index: number) => (
+                            <li
+                              key={index}
+                              className="flex items-start p-3 bg-blue-900/20 border border-blue-800/30 rounded-lg"
+                            >
+                              <SparklesIcon className="h-5 w-5 text-blue-400 mr-3 mt-0.5 flex-shrink-0" />
+                              <span className="text-blue-200 text-sm">
+                                {item}
+                              </span>
+                            </li>
+                          )
+                        )}
                       </ul>
                     </div>
                   )}
@@ -414,7 +457,9 @@ const JobAnalysisPanel = () => {
             {/* Variations */}
             {variations.length > 0 && (
               <div className="space-y-3">
-                <h4 className="text-lg font-semibold text-white mb-4">AI-Powered Variations</h4>
+                <h4 className="text-lg font-semibold text-white mb-4">
+                  AI-Powered Variations
+                </h4>
                 <div className="space-y-3">
                   {variations.map((variation: any, index: number) => (
                     <div
@@ -422,7 +467,9 @@ const JobAnalysisPanel = () => {
                       className="bg-slate-800 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition-colors"
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs text-slate-400">Option {index + 1}</span>
+                        <span className="text-xs text-slate-400">
+                          Option {index + 1}
+                        </span>
                         <button
                           onClick={() => copyToClipboard(variation)}
                           className="text-blue-400 hover:text-blue-300 text-sm"
@@ -431,7 +478,9 @@ const JobAnalysisPanel = () => {
                           <ClipboardDocumentIcon className="h-4 w-4" />
                         </button>
                       </div>
-                      <p className="text-slate-300 text-sm leading-relaxed">{variation}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed">
+                        {variation}
+                      </p>
                     </div>
                   ))}
                 </div>
