@@ -1,39 +1,82 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, AnalysisHistoryEntry } from "../../store/useStore";
 import {
   DocumentTextIcon,
   CalendarIcon,
-  ArrowPathIcon,
+  ClockIcon,
   TrashIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 
 import { deleteHistoryEntry } from "../../services/api";
 import { supabase } from "../../services/supabase";
+import { useAuth } from "../../hooks/useAuth";
 
 const AnalysisHistory = () => {
   const analysisHistory = useStore((state) => state.analysisHistory);
   const removeFromHistory = useStore((state) => state.removeFromHistory);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { isLoggedIn } = useAuth();
 
+  // Show login prompt for non-authenticated users
+  if (isLoggedIn === false) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="card p-6"
+      >
+        <div className="text-center py-12">
+          <LockClosedIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
+          <h3 className="text-xl font-medium text-slate-400 mb-2">
+            Login Required
+          </h3>
+          <p className="text-slate-500 mb-6 max-w-md mx-auto">
+            Sign in to access your analysis history and track your resume
+            improvements over time.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+          >
+            Login to View History
+          </Link>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Show empty state for authenticated users with no history
   if (analysisHistory.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="bg-white rounded-lg shadow-md p-6 text-center"
+        className="card p-6"
       >
-        <ArrowPathIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700 mb-2">
-          No Analysis History
-        </h3>
-        <p className="text-gray-500">
-          Your previous resume analyses will appear here.
-        </p>
+        <div className="text-center py-12">
+          <ClockIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
+          <h3 className="text-xl font-medium text-slate-400 mb-2">
+            No History Available
+          </h3>
+          <p className="text-slate-500 mb-6 max-w-md mx-auto">
+            Your previous resume analyses will appear here. Start analyzing to
+            build your history.
+          </p>
+          <button
+            onClick={() => (window.location.href = "/")}
+            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+          >
+            Analyze Your First Resume
+          </button>
+        </div>
       </motion.div>
     );
   }
@@ -192,9 +235,12 @@ const AnalysisHistory = () => {
 
                         {/* Immediate suggestions */}
                         {entry.analysisResults.recommendations.immediate &&
-                          entry.analysisResults.recommendations.immediate.length > 0 && (
+                          entry.analysisResults.recommendations.immediate
+                            .length > 0 && (
                             <div className="mb-3">
-                              <h5 className="text-xs font-semibold text-orange-400 mb-1">Immediate Actions</h5>
+                              <h5 className="text-xs font-semibold text-orange-400 mb-1">
+                                Immediate Actions
+                              </h5>
                               <ul className="space-y-1">
                                 {entry.analysisResults.recommendations.immediate.map(
                                   (suggestion, idx) => (
@@ -212,9 +258,12 @@ const AnalysisHistory = () => {
 
                         {/* Short-term suggestions */}
                         {entry.analysisResults.recommendations.shortTerm &&
-                          entry.analysisResults.recommendations.shortTerm.length > 0 && (
+                          entry.analysisResults.recommendations.shortTerm
+                            .length > 0 && (
                             <div className="mb-3">
-                              <h5 className="text-xs font-semibold text-blue-400 mb-1">Short-term Goals</h5>
+                              <h5 className="text-xs font-semibold text-blue-400 mb-1">
+                                Short-term Goals
+                              </h5>
                               <ul className="space-y-1">
                                 {entry.analysisResults.recommendations.shortTerm.map(
                                   (suggestion, idx) => (

@@ -9,13 +9,14 @@ import GuestBanner from "../components/dashboard/GuestBanner";
 import Logo from "../components/layout/Logo";
 import { v4 as uuidv4 } from "uuid";
 import { fetchUserHistory, createHistoryEntry } from "../services/api";
-import { supabase } from "../services/supabase";
+import { useAuth } from "../hooks/useAuth";
 
 const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const { user, logout } = useAuth();
 
   const resumeData = useStore((state) => state.resumeData);
   const analysisResults = useStore((state) => state.analysisResults);
@@ -33,34 +34,16 @@ const Dashboard = () => {
       setAnalysisHistory(historyResult.data);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        loadHistory();
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        // Clear guest mode when user logs in
-        setGuestMode(false);
-        loadHistory();
-      } else {
-        setAnalysisHistory([]);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [setAnalysisHistory, setGuestMode]);
+    if (user) {
+      setGuestMode(false);
+      loadHistory();
+    } else {
+      setAnalysisHistory([]);
+    }
+  }, [user, setAnalysisHistory, setGuestMode]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    // Clear all state
+    await logout();
     setAnalysisHistory([]);
     clearCurrentAnalysis();
   };
@@ -178,8 +161,7 @@ const Dashboard = () => {
                   </Link>
                 </div>
               )}
-
-              </div>
+            </div>
 
             {/* Mobile Menu Button */}
             <div className="md:hidden">

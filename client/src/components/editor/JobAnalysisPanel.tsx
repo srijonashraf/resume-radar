@@ -142,7 +142,7 @@ const JobAnalysisPanel = () => {
       <div className="flex gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
         <button
           onClick={() => setActiveSection("input")}
-          className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+          className={`flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all ${
             activeSection === "input"
               ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
               : "bg-slate-800 text-slate-400 hover:bg-slate-700"
@@ -154,7 +154,7 @@ const JobAnalysisPanel = () => {
         <button
           onClick={() => setActiveSection("editor")}
           disabled={!jobMatchResults}
-          className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+          className={`flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all ${
             activeSection === "editor"
               ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
               : jobMatchResults

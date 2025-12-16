@@ -20,7 +20,6 @@ import { useStore } from "../../store/useStore";
 const DashboardTabs = () => {
   const [activeTab, setActiveTab] = useState("analysis");
   const analysisResults = useStore((state) => state.analysisResults);
-  const analysisHistory = useStore((state) => state.analysisHistory);
   const resumeData = useStore((state) => state.resumeData);
   const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
 
@@ -99,19 +98,7 @@ const DashboardTabs = () => {
         return <AnalyticsDashboard />;
 
       case "history":
-        return analysisHistory.length > 0 ? (
-          <AnalysisHistory />
-        ) : (
-          <div className="card p-8 text-center">
-            <ClockIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
-            <h3 className="text-xl font-medium text-slate-400 mb-2">
-              No History Available
-            </h3>
-            <p className="text-slate-500">
-              Your previous resume analyses will appear here.
-            </p>
-          </div>
-        );
+        return <AnalysisHistory />;
 
       default:
         return null;

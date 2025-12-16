@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   fetchSkillTrends,
@@ -11,9 +12,11 @@ import {
   AcademicCapIcon,
   CalendarIcon,
   ArrowPathIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import SkillTrendsChart from "./charts/SkillTrendsChart";
 import ExperienceProgressionChart from "./charts/ExperienceProgressionChart";
+import { useAuth } from "../../hooks/useAuth";
 
 interface HistorySummary {
   total_analyses: number;
@@ -32,6 +35,7 @@ const AnalyticsDashboard = () => {
   const [historySummary, setHistorySummary] = useState<HistorySummary | null>(
     null
   );
+  const { isLoggedIn } = useAuth();
 
   useEffect(() => {
     const fetchAnalyticsData = async () => {
@@ -56,8 +60,41 @@ const AnalyticsDashboard = () => {
       }
     };
 
-    fetchAnalyticsData();
-  }, []);
+    if (isLoggedIn) {
+      fetchAnalyticsData();
+    } else if (isLoggedIn === false) {
+      setLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  // Show login prompt for non-authenticated users
+  if (isLoggedIn === false) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="card p-6"
+      >
+        <div className="text-center py-12">
+          <LockClosedIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
+          <h3 className="text-xl font-medium text-slate-400 mb-2">
+            Login Required
+          </h3>
+          <p className="text-slate-500 mb-6 max-w-md mx-auto">
+            Sign in to access your analytics dashboard with skill trends and
+            experience progression insights.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+          >
+            Login to View Analytics
+          </Link>
+        </div>
+      </motion.div>
+    );
+  }
 
   if (loading) {
     return (
