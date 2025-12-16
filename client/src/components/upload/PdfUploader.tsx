@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { useStore, ResumeData } from "../state/useStore";
-import { extractTextFromPDF } from "../utils/pdfUtils";
+import { useStore, ResumeData } from "../../store/useStore";
+import { extractTextFromPDF } from "../../utils/pdfUtils";
 import { DocumentArrowUpIcon } from "@heroicons/react/24/outline";
 
 const PdfUploader = () => {

@@ -59,13 +59,16 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
     // Check if guest has already used the service
     const existingGuestQuery = `
       SELECT id, analysis_count, last_analysis_at
-      FROM guest_analytics
+      FROM guest_usage
       WHERE ip_address = $1 OR mac_address = $2
       ORDER BY last_analysis_at DESC
       LIMIT 1
     `;
 
-    const result = await pool.query(existingGuestQuery, [ipAddress, macAddress]);
+    const result = await pool.query(existingGuestQuery, [
+      ipAddress,
+      macAddress,
+    ]);
 
     if (result.rows.length > 0) {
       const guest = result.rows[0];
@@ -74,8 +77,9 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
       if (guest.analysis_count >= 1) {
         return {
           allowed: false,
-          message: "You've reached your free resume analysis limit. Please login to analyze more resumes.",
-          analysisCount: guest.analysis_count
+          message:
+            "You've reached your free resume analysis limit. Please login to analyze more resumes.",
+          analysisCount: guest.analysis_count,
         };
       }
 
@@ -84,25 +88,27 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
       return {
         allowed: true,
         guestId: guest.id,
-        analysisCount: guest.analysis_count + 1
+        analysisCount: guest.analysis_count + 1,
       };
     }
 
     // New guest user - create entry
-    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const guestId = `guest_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 11)}`;
     await createGuestEntry(guestId, ipAddress, macAddress, userAgent);
 
     return {
       allowed: true,
       guestId: guestId,
-      analysisCount: 1
+      analysisCount: 1,
     };
   } catch (error) {
     console.error("Error checking guest usage:", error);
     // In case of error, allow the analysis but log the issue
     return {
       allowed: false,
-      message: "Unable to verify guest usage. Please try again or login."
+      message: "Unable to verify guest usage. Please try again or login.",
     };
   }
 };
@@ -117,7 +123,7 @@ const createGuestEntry = async (
   userAgent?: string
 ): Promise<void> => {
   const query = `
-    INSERT INTO guest_analytics (id, ip_address, mac_address, user_agent, analysis_count)
+    INSERT INTO guest_usage (id, ip_address, mac_address, user_agent, analysis_count)
     VALUES ($1, $2, $3, $4, 1)
   `;
 
@@ -129,7 +135,7 @@ const createGuestEntry = async (
  */
 const incrementGuestUsage = async (guestId: string): Promise<void> => {
   const query = `
-    UPDATE guest_analytics
+    UPDATE guest_usage
     SET analysis_count = analysis_count + 1,
         last_analysis_at = NOW()
     WHERE id = $1
@@ -141,11 +147,13 @@ const incrementGuestUsage = async (guestId: string): Promise<void> => {
 /**
  * Get guest analytics by ID
  */
-export const getGuestById = async (guestId: string): Promise<GuestAnalytics | null> => {
+export const getGuestById = async (
+  guestId: string
+): Promise<GuestAnalytics | null> => {
   const query = `
     SELECT id, ip_address, mac_address, user_agent, analysis_count,
            last_analysis_at, created_at, updated_at
-    FROM guest_analytics
+    FROM guest_usage
     WHERE id = $1
   `;
 
@@ -163,7 +171,7 @@ export const getGuestById = async (guestId: string): Promise<GuestAnalytics | nu
  */
 export const cleanupOldGuestEntries = async (): Promise<void> => {
   const query = `
-    DELETE FROM guest_analytics
+    DELETE FROM guest_usage
     WHERE last_analysis_at < NOW() - INTERVAL '30 days'
   `;
 

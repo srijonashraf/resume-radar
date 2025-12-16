@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useStore } from "../state/useStore";
-import { compareWithJobDescription } from "../services/api";
+import { useStore } from "../../store/useStore";
+import { compareWithJobDescription } from "../../services/api";
 
 const JobDescriptionInput = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +73,7 @@ const JobDescriptionInput = () => {
           <textarea
             id="jobDescription"
             rows={6}
-            className="input-field resize-none"
+            className="input-field resize-none custom-scrollbar"
             placeholder="Paste the job description here..."
             value={jobDescription}
             onChange={handleInputChange}

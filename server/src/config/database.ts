@@ -10,14 +10,22 @@ const pool = new Pool({
   },
 });
 
-// Test connection
-pool.on("connect", () => {
-  console.log("✅ Connected to PostgreSQL database");
-});
-
 pool.on("error", (err) => {
   console.error("❌ Unexpected error on idle client", err);
   process.exit(-1);
 });
+
+/**
+ * Tests database connection once at startup
+ */
+export const testConnection = async (): Promise<void> => {
+  try {
+    await pool.query("SELECT 1");
+    console.log("✅ Connected to PostgreSQL database");
+  } catch (error) {
+    console.error("❌ Failed to connect to PostgreSQL database", error);
+    process.exit(-1);
+  }
+};
 
 export default pool;

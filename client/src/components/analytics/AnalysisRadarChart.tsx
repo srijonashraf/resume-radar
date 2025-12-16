@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { AnalysisResult } from '../state/useStore';
+import { AnalysisResult } from '../store/useStore';
 
 interface AnalysisRadarChartProps {
   analysisResults: AnalysisResult;
@@ -9,9 +9,11 @@ interface AnalysisRadarChartProps {
 const AnalysisRadarChart = ({ analysisResults }: AnalysisRadarChartProps) => {
   // Transform analysis results into the format expected by Recharts
   const chartData = [
-    { subject: 'Skills', score: analysisResults.skills },
-    { subject: 'Experience', score: analysisResults.experience },
-    { subject: 'Format', score: analysisResults.format },
+    { subject: 'Technical', score: analysisResults.scores.technicalSkills },
+    { subject: 'Experience', score: analysisResults.scores.experience },
+    { subject: 'Presentation', score: analysisResults.scores.presentation },
+    { subject: 'Education', score: analysisResults.scores.education },
+    { subject: 'Leadership', score: analysisResults.scores.leadership },
   ];
 
   return (

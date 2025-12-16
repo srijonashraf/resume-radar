@@ -1,19 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useStore, AnalysisHistoryEntry } from "../state/useStore";
+import { useStore, AnalysisHistoryEntry } from "../store/useStore";
 import { analyzeResume } from "../services/api";
-import PdfUploader from "../components/PdfUploader";
-import AnalysisResults from "../components/AnalysisResults";
-import JobDescriptionInput from "../components/JobDescriptionInput";
-import JobMatchResults from "../components/JobMatchResults";
-import AnalysisHistory from "../components/AnalysisHistory";
-import CareerMap from "../components/CareerMap";
-import SmartEditor from "../components/SmartEditor";
-import GuestBanner from "../components/GuestBanner";
-import Logo from "../components/Logo";
+import PdfUploader from "../components/upload/PdfUploader";
+import DashboardTabs from "../components/dashboard/DashboardTabs";
+import GuestBanner from "../components/dashboard/GuestBanner";
+import Logo from "../components/layout/Logo";
 import { v4 as uuidv4 } from "uuid";
-import { fetchHistory, saveHistory } from "../services/history";
+import { fetchUserHistory, createHistoryEntry } from "../services/api";
 import { supabase } from "../services/supabase";
 
 const Dashboard = () => {
@@ -24,8 +19,6 @@ const Dashboard = () => {
 
   const resumeData = useStore((state) => state.resumeData);
   const analysisResults = useStore((state) => state.analysisResults);
-  const jobMatchResults = useStore((state) => state.jobMatchResults);
-  const analysisHistory = useStore((state) => state.analysisHistory);
   const isGuest = useStore((state) => state.isGuest);
   const guestMessage = useStore((state) => state.guestMessage);
   const setAnalysisResults = useStore((state) => state.setAnalysisResults);
@@ -36,8 +29,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     const loadHistory = async () => {
-      const history = await fetchHistory();
-      setAnalysisHistory(history);
+      const historyResult = await fetchUserHistory();
+      setAnalysisHistory(historyResult.data);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -101,7 +94,11 @@ const Dashboard = () => {
 
             // Save to Supabase if user is logged in (not a guest)
             if (user) {
-              await saveHistory(historyEntry);
+              await createHistoryEntry({
+                id: historyEntry.id,
+                resumeText: historyEntry.resumeData.rawText,
+                analysis: historyEntry.analysisResults,
+              });
             }
           }
         } catch (err: any) {
@@ -182,15 +179,7 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {resumeData && (
-                <button
-                  onClick={clearCurrentAnalysis}
-                  className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                  Clear Resume
-                </button>
-              )}
-            </div>
+              </div>
 
             {/* Mobile Menu Button */}
             <div className="md:hidden">
@@ -232,17 +221,6 @@ const Dashboard = () => {
                   <div className="text-sm text-slate-400 truncate">
                     {user.email}
                   </div>
-                  {resumeData && (
-                    <button
-                      onClick={() => {
-                        clearCurrentAnalysis();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="block w-full text-left text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                    >
-                      Clear Resume
-                    </button>
-                  )}
                   <button
                     onClick={() => {
                       handleLogout();
@@ -297,9 +275,9 @@ const Dashboard = () => {
                 <PdfUploader />
               </motion.div>
 
-              {analysisHistory.length > 0 && (
+              {user && (
                 <div className="mt-8">
-                  <AnalysisHistory />
+                  <DashboardTabs />
                 </div>
               )}
             </div>
@@ -339,41 +317,7 @@ const Dashboard = () => {
                     />
                   )}
 
-                  {analysisResults && (
-                    <AnalysisResults analysisResults={analysisResults} />
-                  )}
-
-                  {/* Only show advanced features for authenticated users */}
-                  {user && (
-                    <>
-                      <CareerMap />
-
-                      {!jobMatchResults ? (
-                        <JobDescriptionInput />
-                      ) : (
-                        <JobMatchResults jobMatchResults={jobMatchResults} />
-                      )}
-
-                      <SmartEditor />
-                    </>
-                  )}
-
-                  {!user && isGuest && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400 mb-4">
-                        Want to unlock advanced features like job matching and
-                        career mapping?
-                      </p>
-                      <Link
-                        to="/signup"
-                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-105"
-                      >
-                        Create Free Account
-                      </Link>
-                    </div>
-                  )}
-
-                  {analysisHistory.length > 0 && <AnalysisHistory />}
+                  <DashboardTabs />
                 </>
               )}
             </div>

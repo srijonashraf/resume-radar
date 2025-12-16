@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore, AnalysisHistoryEntry } from "../state/useStore";
+import { useStore, AnalysisHistoryEntry } from "../../store/useStore";
 import {
   DocumentTextIcon,
   CalendarIcon,
@@ -11,8 +11,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 
-import { deleteHistory } from "../services/history";
-import { supabase } from "../services/supabase";
+import { deleteHistoryEntry } from "../../services/api";
+import { supabase } from "../../services/supabase";
 
 const AnalysisHistory = () => {
   const analysisHistory = useStore((state) => state.analysisHistory);
@@ -49,7 +49,7 @@ const AnalysisHistory = () => {
           data: { session },
         } = await supabase.auth.getSession();
         if (session?.user) {
-          await deleteHistory(id);
+          await deleteHistoryEntry(id);
         }
         removeFromHistory(id);
       } catch (error) {
@@ -128,7 +128,7 @@ const AnalysisHistory = () => {
                   Skills
                 </span>
                 <span className="font-bold text-blue-400">
-                  {entry.analysisResults.skills}/10
+                  {entry.analysisResults.scores.technicalSkills}/10
                 </span>
               </div>
               <div className="text-sm">
@@ -136,7 +136,7 @@ const AnalysisHistory = () => {
                   Experience
                 </span>
                 <span className="font-bold text-purple-400">
-                  {entry.analysisResults.experience}/10
+                  {entry.analysisResults.scores.experience}/10
                 </span>
               </div>
               <div className="text-sm">
@@ -144,7 +144,7 @@ const AnalysisHistory = () => {
                   Format
                 </span>
                 <span className="font-bold text-green-400">
-                  {entry.analysisResults.format}/10
+                  {entry.analysisResults.scores.presentation}/10
                 </span>
               </div>
             </div>
@@ -183,27 +183,54 @@ const AnalysisHistory = () => {
                       )}
 
                     {/* Suggestions */}
-                    {entry.analysisResults.suggestions &&
-                      entry.analysisResults.suggestions.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-slate-300 mb-2 flex items-center">
-                            <CheckCircleIcon className="h-4 w-4 text-green-400 mr-2" />
-                            Improvement Suggestions
-                          </h4>
-                          <ul className="space-y-2">
-                            {entry.analysisResults.suggestions.map(
-                              (suggestion, idx) => (
-                                <li
-                                  key={idx}
-                                  className="text-sm text-slate-400 pl-4 border-l-2 border-green-500/30"
-                                >
-                                  {suggestion}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
+                    {entry.analysisResults.recommendations && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-300 mb-2 flex items-center">
+                          <CheckCircleIcon className="h-4 w-4 text-green-400 mr-2" />
+                          Improvement Suggestions
+                        </h4>
+
+                        {/* Immediate suggestions */}
+                        {entry.analysisResults.recommendations.immediate &&
+                          entry.analysisResults.recommendations.immediate.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-semibold text-orange-400 mb-1">Immediate Actions</h5>
+                              <ul className="space-y-1">
+                                {entry.analysisResults.recommendations.immediate.map(
+                                  (suggestion, idx) => (
+                                    <li
+                                      key={idx}
+                                      className="text-sm text-slate-400 pl-4 border-l-2 border-green-500/30"
+                                    >
+                                      {suggestion}
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+
+                        {/* Short-term suggestions */}
+                        {entry.analysisResults.recommendations.shortTerm &&
+                          entry.analysisResults.recommendations.shortTerm.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-semibold text-blue-400 mb-1">Short-term Goals</h5>
+                              <ul className="space-y-1">
+                                {entry.analysisResults.recommendations.shortTerm.map(
+                                  (suggestion, idx) => (
+                                    <li
+                                      key={idx}
+                                      className="text-sm text-slate-400 pl-4 border-l-2 border-blue-500/30"
+                                    >
+                                      {suggestion}
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}

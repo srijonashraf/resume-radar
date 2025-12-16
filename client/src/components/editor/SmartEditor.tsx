@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { smartRewrite } from "../services/api";
-import { useStore } from "../state/useStore";
+import { smartRewrite } from "../../services/api";
+import { useStore } from "../../store/useStore";
 import { ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
 
 const SmartEditor = () => {
@@ -50,7 +50,7 @@ const SmartEditor = () => {
           <textarea
             value={selectedText}
             onChange={(e) => setSelectedText(e.target.value)}
-            className="input-field h-32 resize-none"
+            className="input-field h-32 resize-none custom-scrollbar"
             placeholder="e.g. Managed a team of 5 developers..."
           />
           <button

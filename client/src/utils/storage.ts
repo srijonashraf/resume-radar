@@ -1,4 +1,4 @@
-import { AnalysisHistoryEntry } from '../state/useStore';
+import { AnalysisHistoryEntry } from '../store/useStore';
 
 export const STORAGE_KEY = 'resume_analyzer_history';
 

@@ -15,20 +15,44 @@ const Signup = () => {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
+    // Try to sign up the user
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
 
     if (error) {
-      setError(error.message);
-    } else {
-      setShowSuccess(true);
-      // Auto-navigate after 4 seconds
-      setTimeout(() => {
-        navigate("/login");
-      }, 4000);
+      // Check if the error indicates user already exists
+      if (error.message.includes("User with this email already exists")) {
+        setError(
+          "An account with this email already exists. Please login instead."
+        );
+      } else {
+        setError(error.message);
+      }
+      setLoading(false);
+      return;
     }
+
+    // Check if user already exists by examining identities array
+    if (
+      data?.user &&
+      (!data.user.identities || data.user.identities.length === 0)
+    ) {
+      setError(
+        "An account with this email already exists. Please login instead."
+      );
+      setLoading(false);
+      return;
+    }
+
+    // New user created successfully
+    setShowSuccess(true);
+    // Auto-navigate after 4 seconds
+    setTimeout(() => {
+      navigate("/login");
+    }, 4000);
+
     setLoading(false);
   };
 
