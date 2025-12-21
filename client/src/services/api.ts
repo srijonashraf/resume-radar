@@ -64,8 +64,20 @@ export const smartRewrite = async (
   return response.data;
 };
 
+// Tailor Resume - Requires authentication
+export const tailorResume = async (
+  resumeText: string,
+  jobDescription: string
+) => {
+  const response = await api.post("/tailor", { resumeText, jobDescription });
+  return response.data;
+};
+
 // History endpoints - Requires authentication
-export const getUserHistory = async (limit: number = 50, offset: number = 0) => {
+export const getUserHistory = async (
+  limit: number = 50,
+  offset: number = 0
+) => {
   const response = await api.get(`/history?limit=${limit}&offset=${offset}`);
   return response.data;
 };
@@ -97,11 +109,14 @@ export const fetchUserHistory = async (
 
     return {
       data: transformedData,
-      pagination: response.pagination
+      pagination: response.pagination,
     };
   } catch (error) {
     console.error("Error fetching history:", error);
-    return { data: [], pagination: { total: 0, limit, offset, hasMore: false } };
+    return {
+      data: [],
+      pagination: { total: 0, limit, offset, hasMore: false },
+    };
   }
 };
 
@@ -151,11 +166,13 @@ export const fetchHistorySummary = async () => {
     const response = await getHistorySummary();
     return {
       ...response,
-      latest_analysis: response.latest_analysis ? new Date(response.latest_analysis) : null,
+      latest_analysis: response.latest_analysis
+        ? new Date(response.latest_analysis)
+        : null,
       score_trend: response.score_trend.map((trend: any) => ({
         ...trend,
-        date: new Date(trend.date)
-      }))
+        date: new Date(trend.date),
+      })),
     };
   } catch (error) {
     console.error("Error fetching history summary:", error);
@@ -178,7 +195,7 @@ export const fetchExperienceProgression = async () => {
     const response = await getExperienceProgression();
     return response.progression.map((item: any) => ({
       ...item,
-      date: new Date(item.date)
+      date: new Date(item.date),
     }));
   } catch (error) {
     console.error("Error fetching experience progression:", error);

@@ -135,6 +135,29 @@ export interface JobComparisonResult {
   recommendation: string;
 }
 
+export interface TailorSection {
+  name: string;
+  priority: "High" | "Medium" | "Low";
+  before: string;
+  after: string;
+  changes: string[];
+  keywords_added: string[];
+}
+
+export interface TailorResult {
+  sections: TailorSection[];
+  overall_strategy: string;
+  keywords_to_add: string[];
+  keywords_already_present: string[];
+  ats_improvement: {
+    before_score: number;
+    after_score: number;
+  };
+  metadata: {
+    tailoredAt: string;
+  };
+}
+
 // ==================== UTILITY FUNCTIONS ====================
 
 const cleanJSON = (text: string): string => {
@@ -569,4 +592,102 @@ ${jobDescription}
   const response = result.response;
   const text = response.text();
   return JSON.parse(cleanJSON(text)) as JobComparisonResult;
+};
+
+/**
+ * Tailors a resume to match a specific job description by providing
+ * section-by-section rewrites with before/after comparisons.
+ */
+export const tailorResume = async (
+  resumeText: string,
+  jobDescription: string
+): Promise<TailorResult> => {
+  if (!apiKey) throw new Error("Gemini API Key not found");
+
+  const currentDate = new Date().toISOString().split("T")[0];
+
+  const prompt = `
+You are an expert Resume Tailoring Specialist with deep knowledge of ATS systems, hiring practices, and career coaching. Your task is to analyze a resume and provide specific, section-by-section rewrites to optimize it for a target job description.
+
+OBJECTIVE:
+Analyze the resume and job description, then provide SPECIFIC tailored rewrites for each major resume section. Show exactly what to change, with before and after versions.
+
+ANALYSIS REQUIREMENTS:
+
+1. IDENTIFY KEY SECTIONS TO TAILOR:
+   - Summary/Objective (if present)
+   - Work Experience (each relevant position)
+   - Skills Section
+   - Projects (if relevant to the job)
+   - Any other sections that could be optimized
+
+2. FOR EACH SECTION, PROVIDE:
+   - The original text (before)
+   - The tailored version (after)
+   - Specific changes made
+   - Keywords from JD that were incorporated
+
+3. TAILORING STRATEGIES:
+   - Incorporate exact keywords from the job description
+   - Use action verbs that match the job requirements
+   - Quantify achievements where possible
+   - Align terminology with the target company/role
+   - Remove or de-emphasize irrelevant experience
+   - Highlight transferable skills
+
+4. PRIORITIZE SECTIONS:
+   - High: Direct impact on ATS matching and hiring decision
+   - Medium: Supports candidacy but not critical
+   - Low: Minor improvements for polish
+
+Return a JSON object with this EXACT structure:
+{
+  "sections": [
+    {
+      "name": "Section name (e.g., 'Professional Summary', 'Software Engineer at Company X', 'Technical Skills')",
+      "priority": "High" | "Medium" | "Low",
+      "before": "The original text from the resume (copy exactly)",
+      "after": "The tailored version with improvements",
+      "changes": ["List of specific changes made", "Each change as a separate item"],
+      "keywords_added": ["keyword1", "keyword2"]
+    }
+  ],
+  "overall_strategy": "2-3 sentence summary of the tailoring approach and key focus areas",
+  "keywords_to_add": ["Important keywords from JD not yet in resume"],
+  "keywords_already_present": ["Keywords from JD already in resume"],
+  "ats_improvement": {
+    "before_score": number (estimated ATS match score before tailoring, 0-100),
+    "after_score": number (estimated ATS match score after tailoring, 0-100)
+  }
+}
+
+IMPORTANT GUIDELINES:
+- Keep the tailored text authentic - don't add fabricated experience
+- Maintain the candidate's voice while improving impact
+- Focus on the most impactful changes first
+- Ensure tailored versions are concise and ATS-friendly
+- Use the job description's exact terminology where appropriate
+- Today's date is ${currentDate} for any date-related calculations
+
+IMPORTANT: Return ONLY valid JSON with NO markdown formatting, NO code blocks, NO additional text.
+
+Resume Text:
+${resumeText}
+
+Job Description:
+${jobDescription}
+  `;
+
+  const result = await model.generateContent(prompt);
+  const response = result.response;
+  const text = response.text();
+
+  const parsed = JSON.parse(cleanJSON(text)) as Omit<TailorResult, "metadata">;
+
+  return {
+    ...parsed,
+    metadata: {
+      tailoredAt: new Date().toISOString(),
+    },
+  };
 };

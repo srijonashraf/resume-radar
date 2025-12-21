@@ -1,24 +1,31 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore } from "../../store/useStore";
+import { useStore, TailorResult, TailorSection } from "../../store/useStore";
 import { toast } from "sonner";
 import {
   BriefcaseIcon,
   SparklesIcon,
   ClipboardDocumentIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  DocumentTextIcon,
+  ArrowRightIcon,
 } from "@heroicons/react/24/outline";
-import { compareWithJobDescription } from "../../services/api";
-import { smartRewrite } from "../../services/api";
+import { compareWithJobDescription, tailorResume } from "../../services/api";
 
 const JobAnalysisPanel = () => {
   const jobDescription = useStore((state) => state.jobDescription);
   const [jobInput, setJobInput] = useState(jobDescription || "");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isTailoring, setIsTailoring] = useState(false);
   const [jobMatchResults, setJobMatchResults] = useState<any>(null);
-  const [selectedText, setSelectedText] = useState("");
-  const [variations, setVariations] = useState<any[]>([]);
-  const [activeSection, setActiveSection] = useState<"input" | "editor">(
+  const [tailorResults, setTailorResults] = useState<TailorResult | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(
+    new Set()
+  );
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState<"input" | "tailor">(
     "input"
   );
 
@@ -36,6 +43,22 @@ const JobAnalysisPanel = () => {
     return "bg-red-500";
   };
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "High":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "Medium":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "Low":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  /**
+   * Handles job description analysis against the uploaded resume
+   */
   const handleJobAnalysis = async () => {
     if (!jobInput.trim()) {
       toast.error("Please enter a job description", {
@@ -46,8 +69,8 @@ const JobAnalysisPanel = () => {
 
     try {
       setIsAnalyzing(true);
+      setTailorResults(null);
 
-      // Get resume data from store
       const resumeData = useStore.getState().resumeData;
       if (!resumeData?.rawText) {
         toast.error("No resume data found", {
@@ -62,7 +85,6 @@ const JobAnalysisPanel = () => {
       );
 
       setJobMatchResults(results);
-      // Update job description in store
       useStore.getState().setJobDescription(jobInput);
 
       toast.success("Job analysis completed!", {
@@ -78,44 +100,66 @@ const JobAnalysisPanel = () => {
     }
   };
 
-  const handleRewrite = async () => {
-    if (!selectedText.trim()) {
-      toast.error("Please select text to rewrite", {
-        description: "Select some text from your resume to improve it",
-      });
-      return;
-    }
-
-    if (!jobInput.trim()) {
-      toast.error("Please enter a job description first", {
-        description: "Job description is required for smart rewriting",
-      });
-      return;
-    }
-
+  /**
+   * Handles tailoring the resume to match the job description
+   */
+  const handleTailorResume = async () => {
     try {
-      setIsAnalyzing(true);
-      const result = await smartRewrite(selectedText, jobInput);
+      setIsTailoring(true);
 
-      if (result && result.variations && result.variations.length > 0) {
-        setVariations(result.variations);
-        toast.success("Smart rewrite completed!", {
-          description: "Enhanced suggestions generated for your resume text",
+      const resumeData = useStore.getState().resumeData;
+      if (!resumeData?.rawText) {
+        toast.error("No resume data found", {
+          description: "Please upload a resume first",
         });
+        return;
       }
+
+      const results = await tailorResume(resumeData.rawText, jobInput);
+      setTailorResults(results);
+      setActiveSection("tailor");
+      setExpandedSections(new Set([0]));
+
+      toast.success("Resume tailoring completed!", {
+        description: "Section-by-section suggestions are ready",
+      });
     } catch (error: any) {
-      console.error("Smart rewrite error:", error);
-      toast.error("Failed to rewrite text", {
+      console.error("Tailor resume error:", error);
+      toast.error("Failed to tailor resume", {
         description: error.message || "Please try again",
       });
     } finally {
-      setIsAnalyzing(false);
+      setIsTailoring(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+  /**
+   * Toggles the expansion state of a tailoring section
+   */
+  const toggleSection = (index: number) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedSections(newExpanded);
+  };
+
+  /**
+   * Copies text to clipboard with visual feedback
+   */
+  const copyToClipboard = async (text: string, index?: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (index !== undefined) {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      }
+      toast.success("Copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy to clipboard");
+    }
   };
 
   return (
@@ -128,11 +172,11 @@ const JobAnalysisPanel = () => {
           </div>
           <div>
             <h3 className="text-xl font-bold text-white mb-1">
-              Job Analysis & Smart Editor
+              Job Analysis & Resume Tailoring
             </h3>
             <p className="text-slate-300">
-              Compare your resume with job descriptions and use AI-powered text
-              enhancement
+              Compare your resume with job descriptions and get AI-powered
+              tailoring suggestions
             </p>
           </div>
         </div>
@@ -152,21 +196,21 @@ const JobAnalysisPanel = () => {
           Job Analysis
         </button>
         <button
-          onClick={() => setActiveSection("editor")}
-          disabled={!jobMatchResults}
+          onClick={() => setActiveSection("tailor")}
+          disabled={!tailorResults}
           className={`flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all ${
-            activeSection === "editor"
-              ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
-              : jobMatchResults
+            activeSection === "tailor"
+              ? "bg-green-600 text-white shadow-lg shadow-green-500/20"
+              : tailorResults
               ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
               : "bg-slate-800 text-slate-600 cursor-not-allowed"
           }`}
         >
-          <SparklesIcon className="h-4 w-4 mr-2" />
-          Smart Editor
-          {!jobMatchResults && (
+          <DocumentTextIcon className="h-4 w-4 mr-2" />
+          Tailor Results
+          {!tailorResults && (
             <span className="text-xs text-slate-500 ml-1">
-              (Complete analysis first)
+              (Click Tailor CV first)
             </span>
           )}
         </button>
@@ -192,14 +236,14 @@ const JobAnalysisPanel = () => {
                   onChange={(e) => setJobInput(e.target.value)}
                   className="input-field h-32 resize-none"
                   placeholder="Paste the job description here to compare with your resume..."
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || isTailoring}
                 />
               </div>
 
               <button
                 onClick={handleJobAnalysis}
                 disabled={isAnalyzing || !jobInput.trim()}
-                className="w-full btn-primary bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"
+                className="w-full btn-primary"
               >
                 {isAnalyzing ? (
                   <span className="flex items-center justify-center">
@@ -227,458 +271,508 @@ const JobAnalysisPanel = () => {
                   </span>
                 ) : (
                   <span className="flex items-center justify-center">
-                    <BriefcaseIcon className="h-4 w-4 mr-2" />
-                    Analyze Resume vs Job
+                    <SparklesIcon className="h-4 w-4 mr-2" />
+                    Analyze Job Match
                   </span>
                 )}
               </button>
+
+              {/* Job Match Results */}
+              {jobMatchResults && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6 mt-6"
+                >
+                  {/* Score Overview */}
+                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-lg font-semibold text-white">
+                        Match Score
+                      </h4>
+                      <span
+                        className={`text-4xl font-bold ${getMatchColor(
+                          jobMatchResults.matchPercentage
+                        )}`}
+                      >
+                        {jobMatchResults.matchPercentage}%
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-slate-700 rounded-full h-3 mb-4">
+                      <div
+                        className={`h-3 rounded-full transition-all duration-500 ${getMatchBgColor(
+                          jobMatchResults.matchPercentage
+                        )}`}
+                        style={{
+                          width: `${jobMatchResults.matchPercentage}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Match Level:</span>
+                      <span
+                        className={`font-medium ${getMatchColor(
+                          jobMatchResults.matchPercentage
+                        )}`}
+                      >
+                        {jobMatchResults.matchLevel}
+                      </span>
+                    </div>
+
+                    {/* Keyword Stats */}
+                    <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-slate-700">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-400">
+                          {jobMatchResults.keyword_analysis?.total_keywords ||
+                            0}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          Total Keywords
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-400">
+                          {jobMatchResults.keyword_analysis?.matched_keywords ||
+                            0}
+                        </div>
+                        <div className="text-xs text-slate-400">Matched</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-red-400">
+                          {(jobMatchResults.keyword_analysis?.total_keywords ||
+                            0) -
+                            (jobMatchResults.keyword_analysis
+                              ?.matched_keywords || 0)}
+                        </div>
+                        <div className="text-xs text-slate-400">Missing</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Present Skills */}
+                  {jobMatchResults.presentSkills && (
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+                        <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2" />
+                        Skills Found in Your Resume
+                      </h4>
+                      <div className="space-y-3">
+                        {jobMatchResults.presentSkills.exact_matches?.length >
+                          0 && (
+                          <div>
+                            <span className="text-xs text-green-400 font-medium">
+                              Exact Matches
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.presentSkills.exact_matches.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md border border-green-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {jobMatchResults.presentSkills.partial_matches?.length >
+                          0 && (
+                          <div>
+                            <span className="text-xs text-yellow-400 font-medium">
+                              Partial Matches
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.presentSkills.partial_matches.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md border border-yellow-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {jobMatchResults.presentSkills.transferable_skills
+                          ?.length > 0 && (
+                          <div>
+                            <span className="text-xs text-blue-400 font-medium">
+                              Transferable Skills
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.presentSkills.transferable_skills.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-md border border-blue-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Missing Skills */}
+                  {jobMatchResults.missingSkills && (
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="text-lg font-semibold text-white mb-4">
+                        Skills to Add
+                      </h4>
+                      <div className="space-y-3">
+                        {jobMatchResults.missingSkills.critical?.length > 0 && (
+                          <div>
+                            <span className="text-xs text-red-400 font-medium">
+                              Critical
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.missingSkills.critical.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-md border border-red-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {jobMatchResults.missingSkills.important?.length >
+                          0 && (
+                          <div>
+                            <span className="text-xs text-orange-400 font-medium">
+                              Important
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.missingSkills.important.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded-md border border-orange-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {jobMatchResults.missingSkills.nice_to_have?.length >
+                          0 && (
+                          <div>
+                            <span className="text-xs text-slate-400 font-medium">
+                              Nice to Have
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {jobMatchResults.missingSkills.nice_to_have.map(
+                                (skill: string, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-slate-500/20 text-slate-400 text-xs rounded-md border border-slate-500/30"
+                                  >
+                                    {skill}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendation */}
+                  {jobMatchResults.recommendation && (
+                    <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 rounded-xl p-4 border border-blue-500/20">
+                      <h4 className="text-sm font-semibold text-blue-400 mb-2">
+                        AI Recommendation
+                      </h4>
+                      <p className="text-slate-300 text-sm leading-relaxed">
+                        {jobMatchResults.recommendation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Tailor CV Button */}
+                  <button
+                    onClick={handleTailorResume}
+                    disabled={isTailoring}
+                    className="w-full btn-primary bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 shadow-lg shadow-green-500/20"
+                  >
+                    {isTailoring ? (
+                      <span className="flex items-center justify-center">
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Tailoring Your Resume...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center">
+                        <SparklesIcon className="h-4 w-4 mr-2" />✨ Tailor My CV
+                        for This Job
+                      </span>
+                    )}
+                  </button>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Tailor Results Section */}
+        {activeSection === "tailor" && tailorResults && (
+          <motion.div
+            key="tailor"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+            {/* ATS Score Improvement */}
+            <div className="bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-500/20 rounded-xl p-6">
+              <h4 className="text-lg font-semibold text-white mb-4">
+                Estimated ATS Score Improvement
+              </h4>
+              <div className="flex items-center justify-center gap-8">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-slate-400">
+                    {tailorResults.ats_improvement.before_score}%
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Before</div>
+                </div>
+                <ArrowRightIcon className="h-6 w-6 text-green-400" />
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-400">
+                    {tailorResults.ats_improvement.after_score}%
+                  </div>
+                  <div className="text-xs text-green-400/70 mt-1">After</div>
+                </div>
+                <div className="ml-4 px-3 py-1 bg-green-500/20 rounded-full">
+                  <span className="text-sm font-medium text-green-400">
+                    +
+                    {tailorResults.ats_improvement.after_score -
+                      tailorResults.ats_improvement.before_score}
+                    %
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall Strategy */}
+            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+              <h4 className="text-sm font-semibold text-blue-400 mb-2">
+                Tailoring Strategy
+              </h4>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                {tailorResults.overall_strategy}
+              </p>
+            </div>
+
+            {/* Keywords Summary */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                <h4 className="text-sm font-semibold text-green-400 mb-2">
+                  Keywords Already Present
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {tailorResults.keywords_already_present.map(
+                    (keyword, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md"
+                      >
+                        {keyword}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                <h4 className="text-sm font-semibold text-yellow-400 mb-2">
+                  Keywords to Add
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {tailorResults.keywords_to_add.map((keyword, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Section-by-Section Rewrites */}
+            <div className="space-y-3">
+              <h4 className="text-lg font-semibold text-white">
+                Section-by-Section Tailoring
+              </h4>
+              {tailorResults.sections.map(
+                (section: TailorSection, index: number) => (
+                  <div
+                    key={index}
+                    className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden"
+                  >
+                    {/* Section Header */}
+                    <button
+                      onClick={() => toggleSection(index)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-slate-700/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <DocumentTextIcon className="h-5 w-5 text-blue-400" />
+                        <span className="font-medium text-white">
+                          {section.name}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-md border ${getPriorityColor(
+                            section.priority
+                          )}`}
+                        >
+                          {section.priority} Priority
+                        </span>
+                      </div>
+                      {expandedSections.has(index) ? (
+                        <ChevronUpIcon className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDownIcon className="h-5 w-5 text-slate-400" />
+                      )}
+                    </button>
+
+                    {/* Expanded Content */}
+                    <AnimatePresence>
+                      {expandedSections.has(index) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="border-t border-slate-700"
+                        >
+                          <div className="p-4 space-y-4">
+                            {/* Before */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-medium text-red-400 uppercase">
+                                  Before
+                                </span>
+                              </div>
+                              <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
+                                <p className="text-slate-400 text-sm whitespace-pre-wrap">
+                                  {section.before}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* After */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-green-400 uppercase">
+                                  After (Tailored)
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(section.after, index)
+                                  }
+                                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                  {copiedIndex === index ? (
+                                    <>
+                                      <CheckCircleIcon className="h-4 w-4" />
+                                      Copied!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ClipboardDocumentIcon className="h-4 w-4" />
+                                      Copy
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <div className="bg-green-500/5 rounded-lg p-3 border border-green-500/20">
+                                <p className="text-slate-200 text-sm whitespace-pre-wrap">
+                                  {section.after}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Changes Made */}
+                            {section.changes.length > 0 && (
+                              <div className="pt-3 border-t border-slate-700">
+                                <span className="text-xs font-medium text-slate-400 mb-2 block">
+                                  Changes Made:
+                                </span>
+                                <ul className="list-disc list-inside space-y-1">
+                                  {section.changes.map((change, i) => (
+                                    <li
+                                      key={i}
+                                      className="text-xs text-slate-400"
+                                    >
+                                      {change}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Keywords Added */}
+                            {section.keywords_added.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-700">
+                                <span className="text-xs text-slate-500 mr-2">
+                                  Keywords added:
+                                </span>
+                                {section.keywords_added.map((keyword, i) => (
+                                  <span
+                                    key={i}
+                                    className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md"
+                                  >
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Results Section */}
-      {jobMatchResults && activeSection === "input" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="space-y-6">
-            {/* Score Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">Overall Match</span>
-                  <span
-                    className={`text-2xl font-bold ${getMatchColor(
-                      jobMatchResults.matchPercentage
-                    )}`}
-                  >
-                    {jobMatchResults.matchPercentage}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${getMatchBgColor(
-                      jobMatchResults.matchPercentage
-                    )}`}
-                    style={{ width: `${jobMatchResults.matchPercentage}%` }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-center">
-                  <span
-                    className={`text-sm font-medium ${getMatchColor(
-                      jobMatchResults.matchPercentage
-                    )}`}
-                  >
-                    {jobMatchResults.matchLevel}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">Keyword Match</span>
-                  <span className="text-2xl font-bold text-blue-400">
-                    {jobMatchResults.keyword_analysis?.matched_keywords ?? 0}/
-                    {jobMatchResults.keyword_analysis?.total_keywords ?? 0}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div
-                    className="h-2 rounded-full transition-all bg-blue-500"
-                    style={{
-                      width: `${
-                        jobMatchResults.keyword_analysis?.total_keywords
-                          ? (jobMatchResults.keyword_analysis.matched_keywords /
-                              jobMatchResults.keyword_analysis.total_keywords) *
-                            100
-                          : 0
-                      }%`,
-                    }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-center">
-                  <span className="text-xs text-slate-500">
-                    {(jobMatchResults.keyword_analysis?.total_keywords ?? 0) -
-                      (jobMatchResults.keyword_analysis?.matched_keywords ??
-                        0)}{" "}
-                    keywords missing
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">Experience</span>
-                  {jobMatchResults.experience_gap?.required_years !== null ? (
-                    <span
-                      className={`text-2xl font-bold ${
-                        (jobMatchResults.experience_gap?.gap ?? 0) >= 0
-                          ? "text-green-400"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {jobMatchResults.experience_gap?.candidate_years ?? 0} yrs
-                    </span>
-                  ) : (
-                    <span className="text-2xl font-bold text-slate-400">
-                      N/A
-                    </span>
-                  )}
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      (jobMatchResults.experience_gap?.gap ?? 0) >= 0
-                        ? "bg-green-500"
-                        : "bg-yellow-500"
-                    }`}
-                    style={{
-                      width: jobMatchResults.experience_gap?.required_years
-                        ? "100%"
-                        : "50%",
-                    }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-center">
-                  <span className="text-xs text-slate-500">
-                    {jobMatchResults.experience_gap?.required_years !== null
-                      ? `Required: ${jobMatchResults.experience_gap.required_years} yrs`
-                      : "Not specified"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Analysis Details */}
-            <div className="card p-6">
-              <h4 className="text-lg font-semibold text-white mb-4">
-                Analysis Results
-              </h4>
-              <div className="space-y-6">
-                {/* Present Skills */}
-                {jobMatchResults.presentSkills && (
-                  <div>
-                    <h5 className="text-green-400 font-medium mb-3">
-                      Your Matching Skills
-                    </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {jobMatchResults.presentSkills.exact_matches?.length >
-                        0 && (
-                        <div className="bg-green-900/10 border border-green-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-green-400 uppercase mb-2">
-                            Exact Matches
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.presentSkills.exact_matches.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-green-200 text-sm flex items-center"
-                                >
-                                  <CheckCircleIcon className="h-3 w-3 text-green-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                      {jobMatchResults.presentSkills.partial_matches?.length >
-                        0 && (
-                        <div className="bg-blue-900/10 border border-blue-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-blue-400 uppercase mb-2">
-                            Partial Matches
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.presentSkills.partial_matches.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-blue-200 text-sm flex items-center"
-                                >
-                                  <CheckCircleIcon className="h-3 w-3 text-blue-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                      {jobMatchResults.presentSkills.transferable_skills
-                        ?.length > 0 && (
-                        <div className="bg-purple-900/10 border border-purple-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-purple-400 uppercase mb-2">
-                            Transferable
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.presentSkills.transferable_skills.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-purple-200 text-sm flex items-center"
-                                >
-                                  <CheckCircleIcon className="h-3 w-3 text-purple-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Missing Skills */}
-                {jobMatchResults.missingSkills && (
-                  <div>
-                    <h5 className="text-orange-400 font-medium mb-3">
-                      Missing Skills
-                    </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {jobMatchResults.missingSkills.critical?.length > 0 && (
-                        <div className="bg-red-900/10 border border-red-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-red-400 uppercase mb-2">
-                            Critical
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.missingSkills.critical.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-red-200 text-sm flex items-center"
-                                >
-                                  <ClipboardDocumentIcon className="h-3 w-3 text-red-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                      {jobMatchResults.missingSkills.important?.length > 0 && (
-                        <div className="bg-orange-900/10 border border-orange-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-orange-400 uppercase mb-2">
-                            Important
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.missingSkills.important.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-orange-200 text-sm flex items-center"
-                                >
-                                  <ClipboardDocumentIcon className="h-3 w-3 text-orange-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                      {jobMatchResults.missingSkills.nice_to_have?.length >
-                        0 && (
-                        <div className="bg-yellow-900/10 border border-yellow-800/30 rounded-lg p-3">
-                          <h6 className="text-xs font-semibold text-yellow-400 uppercase mb-2">
-                            Nice to Have
-                          </h6>
-                          <ul className="space-y-1">
-                            {jobMatchResults.missingSkills.nice_to_have.map(
-                              (skill: string, idx: number) => (
-                                <li
-                                  key={idx}
-                                  className="text-yellow-200 text-sm flex items-center"
-                                >
-                                  <ClipboardDocumentIcon className="h-3 w-3 text-yellow-400 mr-2 flex-shrink-0" />
-                                  {skill}
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Experience Gap */}
-                {jobMatchResults.experience_gap && (
-                  <div>
-                    <h5 className="text-cyan-400 font-medium mb-3">
-                      Experience Assessment
-                    </h5>
-                    <div className="bg-cyan-900/10 border border-cyan-800/30 rounded-lg p-4">
-                      <p className="text-cyan-200 text-sm italic">
-                        {jobMatchResults.experience_gap.assessment}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Suggestions */}
-                {jobMatchResults.suggestions &&
-                  jobMatchResults.suggestions.length > 0 && (
-                    <div>
-                      <h5 className="text-blue-400 font-medium mb-3">
-                        Improvement Suggestions
-                      </h5>
-                      <ul className="space-y-2">
-                        {jobMatchResults.suggestions.map(
-                          (
-                            suggestion: {
-                              priority: string;
-                              category: string;
-                              action: string;
-                            },
-                            idx: number
-                          ) => (
-                            <li
-                              key={idx}
-                              className="flex items-start p-3 bg-slate-800/50 border border-slate-700/50 rounded-lg"
-                            >
-                              <SparklesIcon className="h-5 w-5 text-blue-400 mr-3 mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                      suggestion.priority === "High"
-                                        ? "bg-red-900/30 text-red-300"
-                                        : suggestion.priority === "Medium"
-                                        ? "bg-yellow-900/30 text-yellow-300"
-                                        : "bg-green-900/30 text-green-300"
-                                    }`}
-                                  >
-                                    {suggestion.priority}
-                                  </span>
-                                  <span className="text-xs text-slate-400">
-                                    {suggestion.category}
-                                  </span>
-                                </div>
-                                <span className="text-slate-300 text-sm">
-                                  {suggestion.action}
-                                </span>
-                              </div>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  )}
-
-                {/* Overall Recommendation */}
-                {jobMatchResults.recommendation && (
-                  <div>
-                    <h5 className="text-emerald-400 font-medium mb-3">
-                      Overall Recommendation
-                    </h5>
-                    <div className="bg-emerald-900/10 border border-emerald-800/30 rounded-lg p-4">
-                      <p className="text-emerald-200 text-sm leading-relaxed">
-                        {jobMatchResults.recommendation}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Smart Editor Section */}
-      {jobMatchResults && activeSection === "editor" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Select Text to Enhance
-              </label>
-              <textarea
-                value={selectedText}
-                onChange={(e) => setSelectedText(e.target.value)}
-                className="input-field h-32 resize-none custom-scrollbar"
-                placeholder="Select text from your resume to enhance it for this job..."
-              />
-            </div>
-
-            <button
-              onClick={handleRewrite}
-              disabled={isAnalyzing || !selectedText.trim()}
-              className="w-full btn-primary bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-500/20"
-            >
-              {isAnalyzing ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    ></path>
-                  </svg>
-                  Generating Suggestions...
-                </span>
-              ) : (
-                <span className="flex items-center justify-center">
-                  <SparklesIcon className="h-4 w-4 mr-2" />
-                  Generate AI Suggestions
-                </span>
-              )}
-            </button>
-
-            {/* Variations */}
-            {variations.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-lg font-semibold text-white mb-4">
-                  AI-Powered Variations
-                </h4>
-                <div className="space-y-3">
-                  {variations.map((variation: any, index: number) => (
-                    <div
-                      key={index}
-                      className="bg-slate-800 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition-colors"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs text-slate-400">
-                          Option {index + 1}
-                        </span>
-                        <button
-                          onClick={() => copyToClipboard(variation)}
-                          className="text-blue-400 hover:text-blue-300 text-sm"
-                          title="Copy to clipboard"
-                        >
-                          <ClipboardDocumentIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <p className="text-slate-300 text-sm leading-relaxed">
-                        {variation}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 };

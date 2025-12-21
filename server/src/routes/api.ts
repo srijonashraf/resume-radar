@@ -5,6 +5,7 @@ import {
   generateCareerMap,
   smartRewrite,
   compareWithJobDescription,
+  tailorResume,
   ResumeAnalysisSuccess,
 } from "../services/geminiService";
 
@@ -132,6 +133,36 @@ router.post("/job-match", requireAuth, async (req: AuthRequest, res) => {
     console.error("Error comparing with job description:", error);
     res.status(500).json({
       error: "Failed to compare with job description. Please try again later.",
+    });
+  }
+});
+
+// Tailor Resume - Requires authentication
+router.post("/tailor", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { resumeText, jobDescription } = req.body;
+
+    if (!resumeText || !jobDescription) {
+      res.status(400).json({
+        error: "Resume text and job description are required",
+      });
+      return;
+    }
+
+    if (typeof resumeText !== "string" || typeof jobDescription !== "string") {
+      res.status(400).json({
+        error: "Resume text and job description must be strings",
+      });
+      return;
+    }
+
+    const result = await tailorResume(resumeText, jobDescription);
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error tailoring resume:", error);
+    res.status(500).json({
+      error: "Failed to tailor resume. Please try again later.",
     });
   }
 });

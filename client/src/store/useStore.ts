@@ -14,7 +14,13 @@ export interface AnalysisResult {
     education: number;
     leadership: number;
   };
-  experienceLevel: "Entry-Level" | "Junior" | "Mid-Level" | "Senior" | "Lead/Principal" | "Executive";
+  experienceLevel:
+    | "Entry-Level"
+    | "Junior"
+    | "Mid-Level"
+    | "Senior"
+    | "Lead/Principal"
+    | "Executive";
   yearsOfExperience: number;
   strengthAreas: string[];
   improvementAreas: string[];
@@ -34,7 +40,12 @@ export interface AnalysisResult {
     score: number;
     issues: string[];
   };
-  hiringRecommendation: "Strong Hire" | "Hire" | "Maybe" | "No Hire" | "Needs More Info";
+  hiringRecommendation:
+    | "Strong Hire"
+    | "Hire"
+    | "Maybe"
+    | "No Hire"
+    | "Needs More Info";
   summary: string;
   metadata?: {
     analyzedAt: string;
@@ -129,6 +140,29 @@ export interface SmartRewriteResult {
   };
 }
 
+export interface TailorSection {
+  name: string;
+  priority: "High" | "Medium" | "Low";
+  before: string;
+  after: string;
+  changes: string[];
+  keywords_added: string[];
+}
+
+export interface TailorResult {
+  sections: TailorSection[];
+  overall_strategy: string;
+  keywords_to_add: string[];
+  keywords_already_present: string[];
+  ats_improvement: {
+    before_score: number;
+    after_score: number;
+  };
+  metadata: {
+    tailoredAt: string;
+  };
+}
+
 export interface AnalysisHistoryEntry {
   id: string;
   date: Date;
@@ -202,7 +236,8 @@ const useStore = create<StoreState>()((set) => ({
     set((state) => ({
       analysisHistory: state.analysisHistory.filter((entry) => entry.id !== id),
     })),
-  setGuestMode: (isGuest, message) => set({ isGuest, guestMessage: message || null }),
+  setGuestMode: (isGuest, message) =>
+    set({ isGuest, guestMessage: message || null }),
 }));
 
 export { useStore };
