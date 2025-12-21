@@ -210,7 +210,11 @@ const JobAnalysisPanel = () => {
           Tailor Results
           {!tailorResults && (
             <span className="text-xs text-slate-500 ml-1">
-              (Click Tailor CV first)
+              (
+              {!jobMatchResults
+                ? "Analyze Job Match first"
+                : "Click Tailor Resume first"}
+              )
             </span>
           )}
         </button>
@@ -505,7 +509,7 @@ const JobAnalysisPanel = () => {
                     </div>
                   )}
 
-                  {/* Tailor CV Button */}
+                  {/* Tailor Resume Button */}
                   <button
                     onClick={handleTailorResume}
                     disabled={isTailoring}
@@ -537,8 +541,8 @@ const JobAnalysisPanel = () => {
                       </span>
                     ) : (
                       <span className="flex items-center justify-center">
-                        <SparklesIcon className="h-4 w-4 mr-2" />✨ Tailor My CV
-                        for This Job
+                        <SparklesIcon className="h-4 w-4 mr-2" />✨ Tailor My
+                        Resume for This Job
                       </span>
                     )}
                   </button>

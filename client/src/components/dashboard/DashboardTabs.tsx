@@ -47,7 +47,7 @@ const DashboardTabs = () => {
     },
     {
       id: "job-analysis",
-      name: "Job Analysis & Editor",
+      name: "Job Analysis & Tailor Resume",
       icon: BriefcaseIcon,
       disabled: !resumeData,
     },
