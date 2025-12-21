@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface ExperienceProgressionChartProps {
   data: Array<{
@@ -9,19 +17,41 @@ interface ExperienceProgressionChartProps {
   }>;
 }
 
-const ExperienceProgressionChart = ({ data }: ExperienceProgressionChartProps) => {
-  // Transform data for the chart
-  const chartData = data.map(item => ({
-    date: new Date(item.date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    }),
-    fullDate: item.date,
-    experienceLevel: item.experience_level,
-    score: item.score || 0
-  })).sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
+const EXPERIENCE_LEVEL_MAP: Record<string, number> = {
+  "Entry-Level": 1,
+  Junior: 2,
+  "Mid-Level": 3,
+  Senior: 4,
+  "Lead/Principal": 5,
+  Executive: 6,
+};
 
-  // Custom tooltip
+const EXPERIENCE_LEVEL_LABELS: Record<number, string> = {
+  1: "Entry",
+  2: "Junior",
+  3: "Mid",
+  4: "Senior",
+  5: "Lead",
+  6: "Exec",
+};
+
+const ExperienceProgressionChart = ({
+  data,
+}: ExperienceProgressionChartProps) => {
+  const chartData = data
+    .map((item) => ({
+      date: new Date(item.date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      fullDate: item.date,
+      experienceLevel: item.experience_level,
+      levelValue: EXPERIENCE_LEVEL_MAP[item.experience_level] || 1,
+    }))
+    .sort(
+      (a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime()
+    );
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -32,15 +62,14 @@ const ExperienceProgressionChart = ({ data }: ExperienceProgressionChartProps) =
           <p className="text-blue-400 text-sm">
             Level: {payload[0].payload.experienceLevel}
           </p>
-          {payload[0].payload.score > 0 && (
-            <p className="text-green-400 text-sm">
-              Score: {payload[0].payload.score.toFixed(1)}
-            </p>
-          )}
         </div>
       );
     }
     return null;
+  };
+
+  const formatYAxisTick = (value: number) => {
+    return EXPERIENCE_LEVEL_LABELS[value] || "";
   };
 
   return (
@@ -55,22 +84,25 @@ const ExperienceProgressionChart = ({ data }: ExperienceProgressionChartProps) =
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#94a3b8', fontSize: 11 }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
             angle={-45}
             textAnchor="end"
             height={60}
           />
           <YAxis
-            tick={{ fill: '#94a3b8' }}
-            domain={['dataMin - 1', 'dataMax + 1']}
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            domain={[0, 7]}
+            ticks={[1, 2, 3, 4, 5, 6]}
+            tickFormatter={formatYAxisTick}
+            width={45}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line
             type="monotone"
-            dataKey="score"
+            dataKey="levelValue"
             stroke="#8b5cf6"
             strokeWidth={3}
-            dot={{ fill: '#8b5cf6', r: 6 }}
+            dot={{ fill: "#8b5cf6", r: 6 }}
             activeDot={{ r: 8 }}
           />
         </LineChart>

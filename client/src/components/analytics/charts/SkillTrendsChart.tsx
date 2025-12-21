@@ -1,24 +1,65 @@
 import { motion } from "framer-motion";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 interface SkillTrendsChartProps {
   data: Array<{
-    skill_name: string;
+    skill?: string;
+    skill_name?: string;
     frequency: number;
     trend?: number;
   }>;
 }
 
 const SkillTrendsChart = ({ data }: SkillTrendsChartProps) => {
-  // Transform data for the chart - take top 10 most frequent skills
-  const chartData = data
-    .sort((a, b) => b.frequency - a.frequency)
+  const chartData = (data || [])
+    .filter((item) => item && (item.skill || item.skill_name))
+    .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
     .slice(0, 10)
-    .map(item => ({
-      skill: item.skill_name,
-      frequency: item.frequency,
-      trend: item.trend || 0
-    }));
+    .map((item) => {
+      const skillName = item.skill || item.skill_name || "";
+      return {
+        skill:
+          skillName.length > 12 ? skillName.slice(0, 10) + "..." : skillName,
+        fullSkill: skillName,
+        frequency: item.frequency || 0,
+      };
+    });
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+          <p className="text-slate-200 text-sm font-medium mb-1">
+            {payload[0].payload.fullSkill}
+          </p>
+          <p className="text-blue-400 text-sm">Frequency: {payload[0].value}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const colors = [
+    "#3b82f6",
+    "#60a5fa",
+    "#93c5fd",
+    "#bfdbfe",
+    "#dbeafe",
+    "#60a5fa",
+    "#3b82f6",
+    "#2563eb",
+    "#1d4ed8",
+    "#1e40af",
+  ];
 
   return (
     <motion.div
@@ -28,50 +69,47 @@ const SkillTrendsChart = ({ data }: SkillTrendsChartProps) => {
       className="w-full h-64"
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+        <BarChart
+          data={chartData}
+          margin={{ top: 10, right: 10, left: 0, bottom: 60 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="#334155"
+            vertical={false}
+          />
           <XAxis
             dataKey="skill"
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
             angle={-45}
             textAnchor="end"
+            interval={0}
             height={60}
           />
           <YAxis
-            tick={{ fill: '#94a3b8' }}
-            label={{ value: 'Frequency', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+            tick={{ fill: "#94a3b8" }}
+            label={{
+              value: "Frequency",
+              angle: -90,
+              position: "insideLeft",
+              fill: "#94a3b8",
+              fontSize: 12,
+            }}
+            allowDecimals={false}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '8px'
-            }}
-            labelStyle={{ color: '#e2e8f0' }}
-            itemStyle={{ color: '#60a5fa' }}
+            content={<CustomTooltip />}
+            cursor={{ fill: "rgba(59, 130, 246, 0.1)" }}
           />
-          <Legend
-            wrapperStyle={{ color: '#94a3b8' }}
-          />
-          <Line
-            type="monotone"
-            dataKey="frequency"
-            stroke="#60a5fa"
-            strokeWidth={2}
-            dot={{ fill: '#60a5fa', r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-          {chartData.some(item => item.trend !== 0) && (
-            <Line
-              type="monotone"
-              dataKey="trend"
-              stroke="#34d399"
-              strokeWidth={2}
-              dot={{ fill: '#34d399', r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          )}
-        </LineChart>
+          <Bar dataKey="frequency" radius={[4, 4, 0, 0]}>
+            {chartData.map((_, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={colors[index % colors.length]}
+              />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     </motion.div>
   );

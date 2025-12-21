@@ -148,7 +148,11 @@ export const analyzeResume = async (
 ): Promise<ResumeAnalysisResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
+  const currentDate = new Date().toISOString().split("T")[0];
+
   const prompt = `
+IMPORTANT CONTEXT: Today's date is ${currentDate}. Use this date when calculating experience durations for positions marked as "Present", "Current", or "Ongoing".
+
 You are a Senior Technical Screener with 15+ years of experience in talent acquisition and technical recruitment across FAANG and Fortune 500 companies. Your role is to conduct thorough, unbiased resume assessments with industry-standard rigor.
 
 PHASE 1 - DOCUMENT VALIDATION:
@@ -213,7 +217,7 @@ Return a JSON object with this EXACT structure:
     "leadership": number (1-10)
   },
   "experienceLevel": "Entry-Level" | "Junior" | "Mid-Level" | "Senior" | "Lead/Principal" | "Executive",
-  "yearsOfExperience": number (estimated total years),
+  "yearsOfExperience": number (SUM of all work experience durations - for positions ending in "Present"/"Current", calculate duration from start date to today's date: ${currentDate}),
   "strengthAreas": string[] (top 3-5 strengths with specific examples),
   "improvementAreas": string[] (top 3-5 areas needing improvement with actionable advice),
   "missingSkills": string[] (skills commonly expected for this experience level but absent),
@@ -455,7 +459,11 @@ export const compareWithJobDescription = async (
 ): Promise<JobComparisonResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
+  const currentDate = new Date().toISOString().split("T")[0];
+
   const prompt = `
+IMPORTANT CONTEXT: Today's date is ${currentDate}. Use this date when calculating candidate's experience duration for positions marked as "Present", "Current", or "Ongoing".
+
 You are a Senior Technical Recruiter and ATS Specialist with expertise in candidate-job matching, skill gap analysis, and resume optimization for technical roles.
 
 OBJECTIVE:
