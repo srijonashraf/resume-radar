@@ -1,7 +1,9 @@
 import pool from "../config/database.js";
 import { createHash } from "crypto";
 import type {
+  ResumeDocument,
   DynamicSection,
+  SectionItem,
   SectionScore,
   AtsReport,
   SectionMetric,
@@ -72,6 +74,55 @@ export async function saveSections(
   } finally {
     client.release();
   }
+}
+
+// ── Load document for analysis pipeline ───────────────────
+
+export async function loadAnalysisDocument(
+  analysisId: string,
+): Promise<{ document: ResumeDocument; userId: string } | null> {
+  // Get analysis row for user_id
+  const analysisResult = await pool.query(
+    "SELECT user_id FROM public.resume_analyses WHERE id = $1",
+    [analysisId],
+  );
+
+  if (analysisResult.rows.length === 0) return null;
+
+  const userId = analysisResult.rows[0].user_id;
+
+  // Get sections
+  const sectionsResult = await pool.query(
+    "SELECT section_type, section_title, display_order, section_data FROM public.resume_sections WHERE analysis_id = $1 ORDER BY display_order",
+    [analysisId],
+  );
+
+  const sections: DynamicSection[] = sectionsResult.rows.map(
+    (row, index) => ({
+      id: `section-${index}`,
+      type: row.section_type,
+      title: row.section_title,
+      displayOrder: row.display_order,
+      items: (row.section_data ?? []) as SectionItem[],
+    }),
+  );
+
+  const document: ResumeDocument = {
+    contact: {
+      fullName: "",
+      email: "",
+      phone: null,
+      location: null,
+      linkedin: null,
+      github: null,
+      portfolio: null,
+    },
+    sections,
+    detectedProfession: "generic",
+    detectedCareerLevel: "all_levels",
+  };
+
+  return { document, userId };
 }
 
 // ── Pipeline v2 Persistence ──────────────────────────────────

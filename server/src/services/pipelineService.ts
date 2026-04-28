@@ -1,11 +1,20 @@
-import type { DynamicSection, ResumeDocument } from "@resumetra/shared";
+import type {
+  DynamicSection,
+  ResumeDocument,
+  AnalysisResultV2,
+} from "@resumetra/shared";
 import { extractPdf } from "./pdfService.js";
 import { validateResume } from "../stages/stage0_validate.js";
 import { extractResume } from "../stages/stage1_extract.js";
 import { detectProfession } from "../stages/detectProfession.js";
 import { detectCareerLevel } from "../stages/detectCareerLevel.js";
 import { getKnowledgeBase } from "../knowledge/registry.js";
-import { saveSections } from "../db/sections.js";
+import { saveSections, loadAnalysisDocument, saveAnalysisResults } from "../db/sections.js";
+import { computeDeterministicMetrics, type MetricsOutput } from "../stages/stage2_metrics.js";
+import { computeAtsFormattingScore, computeKeywordMatchScore } from "../stages/atsScoring.js";
+import { runAnalysisAgent } from "../stages/stage3_analysis.js";
+import { callTool } from "./aiService.js";
+import { extractJdKeywordsTool, extractJdKeywordsResponseSchema } from "../stages/analysisTools.js";
 
 export type PipelineSSESender = (event: string, data: unknown) => void;
 
@@ -99,6 +108,137 @@ export async function runExtractionPipeline(
   }
 
   return { document, profession, careerLevel, sectionCoverage, analysisId };
+}
+
+// ── Analysis Pipeline (Phase 2) ────────────────────────────────
+
+export async function runAnalysisPipeline(
+  input: {
+    analysisId: string;
+    jobDescription?: string;
+  },
+  sendSSE: PipelineSSESender,
+): Promise<AnalysisResultV2> {
+  // Step 1: Load document from DB
+  const loaded = await loadAnalysisDocument(input.analysisId);
+  if (!loaded) {
+    throw new Error("Analysis not found");
+  }
+
+  const { document, userId: _userId } = loaded;
+
+  // Step 2: Re-detect profession + career level (pure functions)
+  const profession = detectProfession(document.sections);
+  const careerLevel = detectCareerLevel(
+    document.sections,
+    profession.professionId,
+  );
+  const kb = getKnowledgeBase(profession.professionId);
+
+  document.detectedProfession = profession.professionId;
+  document.detectedCareerLevel = careerLevel.levelId;
+
+  const sectionCoverage = computeSectionCoverage(
+    document.sections,
+    profession.professionId,
+    careerLevel.levelId,
+  );
+
+  // Step 3: Deterministic metrics
+  sendSSE("computing_metrics", { message: "Computing deterministic metrics..." });
+  const metrics = computeDeterministicMetrics(document, kb, sectionCoverage);
+  sendSSE("metrics_complete", { metrics });
+
+  // Step 4: ATS scoring (if JD provided)
+  let atsReport: AnalysisResultV2["atsReport"] = null;
+
+  if (input.jobDescription) {
+    try {
+      const jdResult = await callTool(
+        [
+          {
+            role: "user",
+            content: `Extract keywords from this job description:\n\n${input.jobDescription}`,
+          },
+        ],
+        [extractJdKeywordsTool],
+        "extract_jd_keywords",
+        extractJdKeywordsResponseSchema,
+      );
+
+      const jdKeywords = [
+        ...jdResult.data.skills,
+        ...jdResult.data.tools,
+        ...jdResult.data.requirements,
+        ...jdResult.data.softSkills,
+      ];
+
+      const formattingScore = computeAtsFormattingScore(metrics, kb);
+      const allCoverage = [
+        ...sectionCoverage.required,
+        ...sectionCoverage.recommended,
+        ...sectionCoverage.optional,
+      ];
+      const coverageMap: Record<string, boolean> = {};
+      for (const c of allCoverage) {
+        coverageMap[c.name] = c.present;
+      }
+
+      const matchResult = computeKeywordMatchScore(
+        Object.keys(metrics.keywordFrequency),
+        jdKeywords,
+        coverageMap,
+        formattingScore.score,
+      );
+
+      atsReport = {
+        matchScore: matchResult.overallAtsScore,
+        resumeKeywords: Object.keys(metrics.keywordFrequency),
+        jdKeywords,
+        matchedKeywords: matchResult.matchedKeywords,
+        missingKeywords: matchResult.missingKeywords,
+        partialMatches: matchResult.partialMatches,
+        sectionCoverage: coverageMap,
+      };
+    } catch {
+      // Graceful: continue without ATS report
+    }
+  }
+
+  // Step 5: AI analysis agent
+  const { sectionScores, readability } = await runAnalysisAgent(
+    document,
+    metrics,
+    kb,
+    sendSSE,
+  );
+
+  // Step 6: Persist
+  const result: AnalysisResultV2 = {
+    deterministicMetrics: metrics,
+    sectionMetrics: metrics.perSection,
+    sectionScores,
+    readability,
+    atsReport,
+    keywordFrequency: metrics.keywordFrequency,
+  };
+
+  try {
+    await saveAnalysisResults({
+      analysisId: input.analysisId,
+      sectionMetrics: metrics.perSection,
+      sectionScores,
+      atsReport,
+      keywordFrequency: metrics.keywordFrequency,
+    });
+  } catch {
+    // Graceful: results still returned to client
+  }
+
+  // Step 7: Complete
+  sendSSE("complete", result);
+
+  return result;
 }
 
 function computeSectionCoverage(

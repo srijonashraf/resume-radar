@@ -22,6 +22,30 @@ vi.mock("../../stages/detectCareerLevel.js", () => ({
 
 vi.mock("../../db/sections.js", () => ({
   saveSections: vi.fn(),
+  loadAnalysisDocument: vi.fn(),
+  saveAnalysisResults: vi.fn(),
+}));
+
+vi.mock("../../stages/stage2_metrics.js", () => ({
+  computeDeterministicMetrics: vi.fn(),
+}));
+
+vi.mock("../../stages/atsScoring.js", () => ({
+  computeAtsFormattingScore: vi.fn(),
+  computeKeywordMatchScore: vi.fn(),
+}));
+
+vi.mock("../../stages/stage3_analysis.js", () => ({
+  runAnalysisAgent: vi.fn(),
+}));
+
+vi.mock("../../stages/analysisTools.js", () => ({
+  extractJdKeywordsTool: {},
+  extractJdKeywordsResponseSchema: {},
+}));
+
+vi.mock("../../services/aiService.js", () => ({
+  callTool: vi.fn(),
 }));
 
 import { extractPdf } from "../../services/pdfService.js";

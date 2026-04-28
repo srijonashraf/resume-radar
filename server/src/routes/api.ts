@@ -19,7 +19,7 @@ import {
 import {
   saveTokenUsage,
 } from "../services/historyService";
-import { runExtractionPipeline } from "../services/pipelineService";
+import { runExtractionPipeline, runAnalysisPipeline } from "../services/pipelineService";
 import { upsertUserFromGoogleProfile, incrementAnalysisCount } from "../services/userService";
 import { ValidationError } from "../errors";
 import pool from "../config/database";
@@ -196,6 +196,67 @@ router.post(
       }
       console.error("Extraction error:", error);
       sendSSE("error", { error: "Extraction failed. Please try again." });
+      res.end();
+    }
+  },
+);
+
+// ==================== ANALYSIS ROUTE ====================
+
+router.post(
+  "/analyze",
+  aiRateLimiter,
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    const { analysisId, jobDescription } = req.body;
+    const userId = req.user!.id;
+
+    if (!analysisId || typeof analysisId !== "string") {
+      res.status(400).json({ error: "analysisId is required" });
+      return;
+    }
+
+    if (jobDescription !== undefined && typeof jobDescription !== "string") {
+      res.status(400).json({ error: "jobDescription must be a string" });
+      return;
+    }
+
+    // Ownership check
+    const ownershipResult = await pool.query(
+      "SELECT user_id FROM public.resume_analyses WHERE id = $1",
+      [analysisId],
+    );
+
+    if (ownershipResult.rows.length === 0) {
+      res.status(404).json({ error: "Analysis not found" });
+      return;
+    }
+
+    if (ownershipResult.rows[0].user_id !== userId) {
+      res.status(403).json({ error: "You do not own this analysis" });
+      return;
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const sendSSE = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      await runAnalysisPipeline(
+        { analysisId, jobDescription: jobDescription || undefined },
+        sendSSE,
+      );
+      res.end();
+    } catch (error) {
+      console.error("Analysis error:", error);
+      sendSSE("error", {
+        error: error instanceof Error ? error.message : "Analysis failed",
+      });
       res.end();
     }
   },
