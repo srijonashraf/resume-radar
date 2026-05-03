@@ -2,6 +2,8 @@ import axios from "axios";
 
 import { ApiError } from "./errors";
 
+import type { Rewrite } from "@resumetra/shared";
+
 import type {
   SSEExtractionProgress,
   SSEExtractionCompletePayload,
@@ -9,6 +11,10 @@ import type {
   SSEMetricsCompletePayload,
   SSEAnalyzingProgress,
   SSEAnalysisCompletePayload,
+  SSETailoringStart,
+  SSETailoringSection,
+  SSETailoringRewrite,
+  SSETailoringComplete,
 } from "../types";
 
 import type {
@@ -269,6 +275,114 @@ export const tailorResume = async (
   jobDescription: string,
 ): Promise<TailorResult> => {
   const response = await api.post("/tailor", { analysisId, resumeText, jobDescription });
+  return response.data.data;
+};
+
+// ==================== Tailoring — SSE Streaming ====================
+
+export interface TailorStreamCallbacks {
+  onTailoringStart: (data: SSETailoringStart) => void;
+  onTailoringSection: (data: SSETailoringSection) => void;
+  onTailoringRewrite: (data: SSETailoringRewrite) => void;
+}
+
+export const tailorResumeStream = async (
+  analysisId: string,
+  jobDescription: string,
+  callbacks: TailorStreamCallbacks,
+): Promise<SSETailoringComplete> => {
+  const token = localStorage.getItem("resumetra_token");
+
+  const response = await fetch(`${API_URL}/tailor`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ analysisId, jobDescription }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw ApiError.fromResponse(response.status, errorData);
+  }
+
+  if (!response.body) {
+    throw new ApiError(500, "No response body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completeResult: SSETailoringComplete | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const eventBlocks = buffer.split("\n\n");
+    buffer = eventBlocks.pop() || "";
+
+    for (const block of eventBlocks) {
+      if (!block.trim()) continue;
+
+      let eventType = "";
+      let eventData = "";
+
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          eventData = line.slice(6);
+        }
+      }
+
+      if (!eventData) continue;
+
+      const parsed: unknown = JSON.parse(eventData);
+
+      switch (eventType) {
+        case "tailoring_start":
+          callbacks.onTailoringStart(parsed as SSETailoringStart);
+          break;
+        case "tailoring_section":
+          callbacks.onTailoringSection(parsed as SSETailoringSection);
+          break;
+        case "tailoring_rewrite":
+          callbacks.onTailoringRewrite(parsed as SSETailoringRewrite);
+          break;
+        case "tailoring_complete":
+          completeResult = parsed as SSETailoringComplete;
+          break;
+        case "error":
+          throw ApiError.fromResponse(400, parsed);
+      }
+    }
+  }
+
+  if (!completeResult) {
+    throw new ApiError(500, "Stream ended without complete event");
+  }
+
+  return completeResult;
+};
+
+// ==================== Tailoring — REST ====================
+
+export const fetchRewrites = async (
+  analysisId: string,
+): Promise<Rewrite[]> => {
+  const response = await api.get(`/tailor/${analysisId}`);
+  return response.data.data;
+};
+
+export const patchRewriteAcceptance = async (
+  rewriteId: string,
+  accepted: boolean,
+): Promise<{ id: string; accepted: boolean }> => {
+  const response = await api.patch(`/tailor/rewrite/${rewriteId}`, { accepted });
   return response.data.data;
 };
 

@@ -44,12 +44,35 @@ export interface SSEAnalyzingProgress {
   sectionTitle: string;
 }
 
-import type { AnalysisResultV2 } from "@resumetra/shared";
+import type { AnalysisResultV2, Rewrite } from "@resumetra/shared";
 
 export type SSEAnalysisCompletePayload = AnalysisResultV2;
 
 export interface SSEAnalysisError {
   error: string;
+}
+
+// ==================== Tailoring SSE Payloads ====================
+
+export interface SSETailoringStart {
+  message: string;
+}
+
+export interface SSETailoringSection {
+  sectionId: string;
+  sectionTitle: string;
+}
+
+export type SSETailoringRewrite = Rewrite;
+
+export interface SSETailoringComplete {
+  rewrites: Rewrite[];
+  stats: {
+    rewritten: number;
+    reframed: number;
+    missing: number;
+    total: number;
+  };
 }
 
 // ==================== Extraction SSE Payloads ====================
