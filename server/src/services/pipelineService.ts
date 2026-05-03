@@ -2,6 +2,7 @@ import type {
   DynamicSection,
   ResumeDocument,
   AnalysisResultV2,
+  Rewrite,
 } from "@resumetra/shared";
 import { extractPdf } from "./pdfService.js";
 import { validateResume } from "../stages/stage0_validate.js";
@@ -9,12 +10,14 @@ import { extractResume } from "../stages/stage1_extract.js";
 import { detectProfession } from "../stages/detectProfession.js";
 import { detectCareerLevel } from "../stages/detectCareerLevel.js";
 import { getKnowledgeBase } from "../knowledge/registry.js";
-import { saveSections, loadAnalysisDocument, saveAnalysisResults } from "../db/sections.js";
+import { saveSections, loadAnalysisDocument, loadAnalysisResults, saveAnalysisResults } from "../db/sections.js";
 import { computeDeterministicMetrics, type MetricsOutput } from "../stages/stage2_metrics.js";
 import { computeAtsFormattingScore, computeKeywordMatchScore } from "../stages/atsScoring.js";
 import { runAnalysisAgent } from "../stages/stage3_analysis.js";
+import { runTailorAgent } from "../stages/stage4_tailoring.js";
 import { callTool } from "./aiService.js";
 import { extractJdKeywordsTool, extractJdKeywordsResponseSchema } from "../stages/analysisTools.js";
+import { saveRewrites } from "../db/rewrites.js";
 
 export type PipelineSSESender = (event: string, data: unknown) => void;
 
@@ -239,6 +242,76 @@ export async function runAnalysisPipeline(
   sendSSE("complete", result);
 
   return result;
+}
+
+// ── Tailor Pipeline (Phase 3) ────────────────────────────────────
+
+export interface TailorPipelineResult {
+  rewrites: Rewrite[];
+  stats: {
+    rewritten: number;
+    reframed: number;
+    missing: number;
+    total: number;
+  };
+}
+
+export async function runTailorPipeline(
+  input: {
+    analysisId: string;
+    jobDescription: string;
+  },
+  sendSSE: PipelineSSESender,
+): Promise<TailorPipelineResult> {
+  // Step 1: Load document from DB
+  const loaded = await loadAnalysisDocument(input.analysisId);
+  if (!loaded) {
+    throw new Error("Analysis not found");
+  }
+  const { document } = loaded;
+
+  // Step 2: Load analysis results
+  const analysisResult = await loadAnalysisResults(input.analysisId);
+  if (!analysisResult) {
+    throw new Error("Analysis results not found");
+  }
+
+  // Step 3: Re-detect profession + get KB
+  const profession = detectProfession(document.sections);
+  const kb = getKnowledgeBase(profession.professionId);
+
+  // Step 4: Start tailoring
+  sendSSE("tailoring_start", { message: "Analyzing skill gaps..." });
+
+  // Step 5: Run tailor agent
+  const rewrites = await runTailorAgent(
+    document,
+    analysisResult.atsReport,
+    analysisResult,
+    input.jobDescription,
+    kb,
+    sendSSE,
+  );
+
+  // Step 6: Compute stats
+  const stats = {
+    rewritten: rewrites.filter((r) => r.gapClassification === "REWRITTEN").length,
+    reframed: rewrites.filter((r) => r.gapClassification === "REFRAMED").length,
+    missing: rewrites.filter((r) => r.gapClassification === "MISSING").length,
+    total: rewrites.length,
+  };
+
+  // Step 7: Persist
+  try {
+    await saveRewrites({ analysisId: input.analysisId, rewrites });
+  } catch {
+    // Graceful: rewrites still returned to client
+  }
+
+  // Step 8: Complete
+  sendSSE("tailoring_complete", { rewrites, stats });
+
+  return { rewrites, stats };
 }
 
 function computeSectionCoverage(

@@ -48,6 +48,14 @@ vi.mock("../../services/aiService.js", () => ({
   callTool: vi.fn(),
 }));
 
+vi.mock("../../db/rewrites.js", () => ({
+  saveRewrites: vi.fn(),
+}));
+
+vi.mock("../../stages/stage4_tailoring.js", () => ({
+  runTailorAgent: vi.fn(),
+}));
+
 import { extractPdf } from "../../services/pdfService.js";
 import { validateResume } from "../../stages/stage0_validate.js";
 import { extractResume } from "../../stages/stage1_extract.js";

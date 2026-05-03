@@ -19,7 +19,8 @@ import {
 import {
   saveTokenUsage,
 } from "../services/historyService";
-import { runExtractionPipeline, runAnalysisPipeline } from "../services/pipelineService";
+import { runExtractionPipeline, runAnalysisPipeline, runTailorPipeline } from "../services/pipelineService";
+import { loadRewrites, updateRewriteAcceptance } from "../db/rewrites";
 import { upsertUserFromGoogleProfile, incrementAnalysisCount } from "../services/userService";
 import { ValidationError } from "../errors";
 import pool from "../config/database";
@@ -315,10 +316,119 @@ router.post(
   "/tailor",
   aiRateLimiter,
   requireAuth,
-  asyncHandler(async (_req, res) => {
-    res.status(503).json({
-      error: "This feature is temporarily disabled during a major upgrade. It will return in Phase 3.",
-    });
+  async (req: AuthRequest, res) => {
+    const { analysisId, jobDescription } = req.body;
+    const userId = req.user!.id;
+
+    if (!analysisId || typeof analysisId !== "string") {
+      res.status(400).json({ error: "analysisId is required" });
+      return;
+    }
+
+    if (!jobDescription || typeof jobDescription !== "string") {
+      res.status(400).json({ error: "jobDescription is required" });
+      return;
+    }
+
+    // Ownership check
+    const ownershipResult = await pool.query(
+      "SELECT user_id FROM public.resume_analyses WHERE id = $1",
+      [analysisId],
+    );
+
+    if (ownershipResult.rows.length === 0) {
+      res.status(404).json({ error: "Analysis not found" });
+      return;
+    }
+
+    if (ownershipResult.rows[0].user_id !== userId) {
+      res.status(403).json({ error: "You do not own this analysis" });
+      return;
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const sendSSE = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      await runTailorPipeline({ analysisId, jobDescription }, sendSSE);
+      res.end();
+    } catch (error) {
+      console.error("Tailor error:", error);
+      sendSSE("error", {
+        error: error instanceof Error ? error.message : "Tailoring failed",
+      });
+      res.end();
+    }
+  },
+);
+
+router.get(
+  "/tailor/:analysisId",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const analysisId = req.params.analysisId as string;
+    const userId = req.user!.id;
+
+    // Ownership check
+    const ownershipResult = await pool.query(
+      "SELECT user_id FROM public.resume_analyses WHERE id = $1",
+      [analysisId],
+    );
+
+    if (ownershipResult.rows.length === 0) {
+      res.status(404).json({ error: "Analysis not found" });
+      return;
+    }
+
+    if (ownershipResult.rows[0].user_id !== userId) {
+      res.status(403).json({ error: "You do not own this analysis" });
+      return;
+    }
+
+    const rewrites = await loadRewrites(analysisId);
+    res.json({ data: rewrites });
+  }),
+);
+
+router.patch(
+  "/tailor/rewrite/:rewriteId",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const rewriteId = req.params.rewriteId as string;
+    const { accepted } = req.body;
+    const userId = req.user!.id;
+
+    if (typeof accepted !== "boolean") {
+      res.status(400).json({ error: "accepted (boolean) is required" });
+      return;
+    }
+
+    // Ownership check: verify rewrite belongs to user's analysis
+    const ownershipResult = await pool.query(
+      `SELECT ra.user_id FROM public.resume_tailor_rewrites rtr
+       JOIN public.resume_analyses ra ON rtr.analysis_id = ra.id
+       WHERE rtr.id = $1`,
+      [rewriteId],
+    );
+
+    if (ownershipResult.rows.length === 0) {
+      res.status(404).json({ error: "Rewrite not found" });
+      return;
+    }
+
+    if (ownershipResult.rows[0].user_id !== userId) {
+      res.status(403).json({ error: "You do not own this rewrite" });
+      return;
+    }
+
+    const updated = await updateRewriteAcceptance(rewriteId, accepted);
+    res.json({ data: updated });
   }),
 );
 

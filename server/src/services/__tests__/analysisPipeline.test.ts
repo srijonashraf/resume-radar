@@ -55,6 +55,14 @@ vi.mock("../../services/aiService.js", () => ({
   callTool: mockCallTool,
 }));
 
+vi.mock("../../db/rewrites.js", () => ({
+  saveRewrites: vi.fn(),
+}));
+
+vi.mock("../../stages/stage4_tailoring.js", () => ({
+  runTailorAgent: vi.fn(),
+}));
+
 import { runAnalysisPipeline } from "../../services/pipelineService.js";
 
 // ── Fixtures ─────────────────────────────────────────────────
