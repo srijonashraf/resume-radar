@@ -3,6 +3,55 @@
  * SSE extraction events use camelCase.
  */
 
+// ==================== Analysis SSE Payloads ====================
+
+export interface SSEComputingMetrics {
+  message: string;
+}
+
+export interface SSEMetricsCompletePayload {
+  metrics: {
+    wordCount: number;
+    bulletCount: number;
+    avgBulletWordCount: number;
+    sectionsPresent: string[];
+    sectionsMissing: string[];
+    bulletsWithActionVerb: number;
+    bulletsWithMetric: number;
+    formattingIssues: Array<{
+      type: string;
+      severity: "high" | "medium" | "low";
+      description: string;
+      location?: string;
+    }>;
+    careerLevelDetected: string;
+    totalExperienceMonths: number;
+    perSection: Array<{
+      sectionId: string;
+      title: string;
+      wordCount: number;
+      bulletCount: number;
+      avgBulletWordCount: number;
+      bulletsWithActionVerb: number;
+      bulletsWithMetric: number;
+    }>;
+    keywordFrequency: Record<string, number>;
+  };
+}
+
+export interface SSEAnalyzingProgress {
+  sectionId: string;
+  sectionTitle: string;
+}
+
+import type { AnalysisResultV2 } from "@resumetra/shared";
+
+export type SSEAnalysisCompletePayload = AnalysisResultV2;
+
+export interface SSEAnalysisError {
+  error: string;
+}
+
 // ==================== Extraction SSE Payloads ====================
 
 export interface SSEExtractionProgress {

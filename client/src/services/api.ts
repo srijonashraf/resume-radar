@@ -5,6 +5,10 @@ import { ApiError } from "./errors";
 import type {
   SSEExtractionProgress,
   SSEExtractionCompletePayload,
+  SSEComputingMetrics,
+  SSEMetricsCompletePayload,
+  SSEAnalyzingProgress,
+  SSEAnalysisCompletePayload,
 } from "../types";
 
 import type {
@@ -131,6 +135,100 @@ export const extractResumeStream = async (
           break;
         case "complete":
           completeResult = parsed as SSEExtractionCompletePayload;
+          break;
+        case "error":
+          throw ApiError.fromResponse(400, parsed);
+      }
+    }
+  }
+
+  if (!completeResult) {
+    throw new ApiError(500, "Stream ended without complete event");
+  }
+
+  return completeResult;
+};
+
+// ==================== Analysis — SSE Streaming ====================
+
+export interface AnalysisStreamCallbacks {
+  onComputingMetrics: (data: SSEComputingMetrics) => void;
+  onMetricsComplete: (data: SSEMetricsCompletePayload) => void;
+  onAnalyzing: (data: SSEAnalyzingProgress) => void;
+}
+
+export const analyzeResumeStream = async (
+  analysisId: string,
+  jobDescription: string | null,
+  callbacks: AnalysisStreamCallbacks,
+): Promise<SSEAnalysisCompletePayload> => {
+  const token = localStorage.getItem("resumetra_token");
+
+  const response = await fetch(`${API_URL}/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      analysisId,
+      ...(jobDescription ? { jobDescription } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw ApiError.fromResponse(response.status, errorData);
+  }
+
+  if (!response.body) {
+    throw new ApiError(500, "No response body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completeResult: SSEAnalysisCompletePayload | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const eventBlocks = buffer.split("\n\n");
+    buffer = eventBlocks.pop() || "";
+
+    for (const block of eventBlocks) {
+      if (!block.trim()) continue;
+
+      let eventType = "";
+      let eventData = "";
+
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          eventData = line.slice(6);
+        }
+      }
+
+      if (!eventData) continue;
+
+      const parsed: unknown = JSON.parse(eventData);
+
+      switch (eventType) {
+        case "computing_metrics":
+          callbacks.onComputingMetrics(parsed as SSEComputingMetrics);
+          break;
+        case "metrics_complete":
+          callbacks.onMetricsComplete(parsed as SSEMetricsCompletePayload);
+          break;
+        case "analyzing":
+          callbacks.onAnalyzing(parsed as SSEAnalyzingProgress);
+          break;
+        case "complete":
+          completeResult = parsed as SSEAnalysisCompletePayload;
           break;
         case "error":
           throw ApiError.fromResponse(400, parsed);

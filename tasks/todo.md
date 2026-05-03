@@ -8,13 +8,13 @@ Full plan: `tasks/plan.md`
 |---|------|--------|------------|
 | 1 | T0: Cleanup old `/analyze` pipeline | ✅ | — |
 | 2 | T7: Shared analysis v2 types | ✅ | T0 |
-| 3 | T1: Deterministic metrics engine | ⬜ | T7 |
-| 4 | T2: ATS scoring engine | ⬜ | T7 |
-| 5 | T3: Analysis agent tools + prompts | ⬜ | T7 |
-| 6 | T4: Pipeline v2 persistence | ⬜ | T1 |
-| 7 | T5: Stage 3 analysis agent | ⬜ | T1, T3 |
-| 8 | T6: Pipeline orchestrator + route | ⬜ | T1-T5 |
-| 9 | T8: Client API + store | ⬜ | T6 |
+| 3 | T1: Deterministic metrics engine | ✅ | T7 |
+| 4 | T2: ATS scoring engine | ✅ | T7 |
+| 5 | T3: Analysis agent tools + prompts | ✅ | T7 |
+| 6 | T4: Pipeline v2 persistence | ✅ | T1 |
+| 7 | T5: Stage 3 analysis agent | ✅ | T1, T3 |
+| 8 | T6: Pipeline orchestrator + route | ✅ | T1-T5 |
+| 9 | T8: Client API + store | ✅ | T6 |
 | 10 | T9: Analysis results UI | ⬜ | T8 |
 | 11 | T10: Integration verification | ⬜ | T9 |
 

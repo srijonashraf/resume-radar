@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AnalysisResultV2 } from "@resumetra/shared";
 
 export interface ResumeData {
   file: File | null;
@@ -130,6 +131,13 @@ export type ExtractionPhase =
   | "complete"
   | "error";
 
+export type AnalysisPhase =
+  | "idle"
+  | "computing_metrics"
+  | "analyzing"
+  | "complete"
+  | "error";
+
 export interface ExtractionResult {
   document: {
     contact: {
@@ -191,6 +199,12 @@ interface StoreState {
   setExtractionPhase: (phase: ExtractionPhase) => void;
   setExtractionProgress: (progress: { sectionName: string; index: number; total: number } | null) => void;
   setExtractionConfirmed: (confirmed: boolean) => void;
+  analysisResult: AnalysisResultV2 | null;
+  analysisPhase: AnalysisPhase;
+  analysisProgress: { sectionId: string; sectionTitle: string } | null;
+  setAnalysisResult: (result: AnalysisResultV2 | null) => void;
+  setAnalysisPhase: (phase: AnalysisPhase) => void;
+  setAnalysisProgress: (progress: { sectionId: string; sectionTitle: string } | null) => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -203,6 +217,9 @@ const useStore = create<StoreState>()((set) => ({
   extractionPhase: "idle",
   extractionProgress: null,
   extractionConfirmed: false,
+  analysisResult: null,
+  analysisPhase: "idle" as AnalysisPhase,
+  analysisProgress: null,
   setResumeData: (data) => set({ resumeData: data }),
   setJobDescription: (description) => set({ jobDescription: description }),
   clearCurrentAnalysis: () =>
@@ -215,6 +232,9 @@ const useStore = create<StoreState>()((set) => ({
       extractionPhase: "idle",
       extractionProgress: null,
       extractionConfirmed: false,
+      analysisResult: null,
+      analysisPhase: "idle",
+      analysisProgress: null,
     }),
   setUsage: (usage) => set({ usage }),
   setTailorResult: (result) => set({ tailorResult: result }),
@@ -223,6 +243,9 @@ const useStore = create<StoreState>()((set) => ({
   setExtractionPhase: (phase) => set({ extractionPhase: phase }),
   setExtractionProgress: (progress) => set({ extractionProgress: progress }),
   setExtractionConfirmed: (confirmed) => set({ extractionConfirmed: confirmed }),
+  setAnalysisResult: (result) => set({ analysisResult: result }),
+  setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
+  setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
 }));
 
 export { useStore };
