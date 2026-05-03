@@ -8,6 +8,8 @@ interface ResumeHealthCheckProps {
   profession: ExtractionResult["profession"];
   careerLevel: ExtractionResult["careerLevel"];
   sectionCoverage: ExtractionResult["sectionCoverage"];
+  onAnalyze: () => void;
+  isAnalyzing: boolean;
 }
 
 const formatProfessionName = (id: string) =>
@@ -51,6 +53,8 @@ export default function ResumeHealthCheck({
   profession,
   careerLevel,
   sectionCoverage,
+  onAnalyze,
+  isAnalyzing,
 }: ResumeHealthCheckProps) {
   const groups: CoverageGroup[] = [
     { tier: "required", label: "Required", items: sectionCoverage.required },
@@ -133,12 +137,9 @@ export default function ResumeHealthCheck({
         </div>
 
         <div className="mt-8 text-center">
-          <Button className="w-full" disabled>
-            Continue to Analysis
+          <Button className="w-full" onClick={onAnalyze} disabled={isAnalyzing}>
+            {isAnalyzing ? "Analyzing..." : "Continue to Analysis"}
           </Button>
-          <p className="text-xs text-stone-400 mt-2">
-            Full analysis pipeline coming in Phase 2
-          </p>
         </div>
       </Card>
     </motion.div>

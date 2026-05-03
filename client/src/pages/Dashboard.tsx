@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "../store/useStore";
-import { extractResumeStream } from "../services/api";
+import { extractResumeStream, analyzeResumeStream } from "../services/api";
 import { ApiError } from "../services/errors";
 import PdfUploader from "../components/upload/PdfUploader";
 import SectionConfirmation from "../components/upload/SectionConfirmation";
 import ResumeHealthCheck from "../components/upload/ResumeHealthCheck";
+import AnalysisResults from "../components/analytics/AnalysisResults";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
 import AppShell from "../components/app/AppShell";
 import { fetchUsage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 import { Spinner } from "../components/ui";
 import type { SSEExtractionProgress } from "../types";
 import { NoSymbolIcon } from "@heroicons/react/24/outline";
@@ -33,6 +35,13 @@ const Dashboard = () => {
   const setExtractionConfirmed = useStore((state) => state.setExtractionConfirmed);
   const setExtractionProgress = useStore((state) => state.setExtractionProgress);
   const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
+  const analysisResult = useStore((state) => state.analysisResult);
+  const analysisPhase = useStore((state) => state.analysisPhase);
+  const analysisProgress = useStore((state) => state.analysisProgress);
+  const setAnalysisResult = useStore((state) => state.setAnalysisResult);
+  const setAnalysisPhase = useStore((state) => state.setAnalysisPhase);
+  const setAnalysisProgress = useStore((state) => state.setAnalysisProgress);
+  const jobDescription = useStore((state) => state.jobDescription);
 
   useEffect(() => {
     const loadUsage = async () => {
@@ -104,6 +113,42 @@ const Dashboard = () => {
   const handleNewAnalysis = () => {
     clearCurrentAnalysis();
     setError(null);
+  };
+
+  const handleAnalyze = async () => {
+    if (!extractionResult?.analysisId) return;
+
+    setIsAnalyzing(true);
+    setError(null);
+    setAnalysisPhase("computing_metrics");
+
+    try {
+      const result = await analyzeResumeStream(
+        extractionResult.analysisId,
+        jobDescription || null,
+        {
+          onComputingMetrics: () => setAnalysisPhase("computing_metrics"),
+          onMetricsComplete: () => {},
+          onAnalyzing: (data) => {
+            setAnalysisPhase("analyzing");
+            setAnalysisProgress(data);
+          },
+        },
+      );
+
+      setAnalysisResult(result);
+      setAnalysisPhase("complete");
+    } catch (err: unknown) {
+      console.error("Analysis error:", err);
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Analysis failed. Please try again.");
+      }
+      setAnalysisPhase("error");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -197,12 +242,52 @@ const Dashboard = () => {
                 sections={extractionResult.document.sections}
                 onConfirm={() => setExtractionConfirmed(true)}
               />
-            ) : extractionConfirmed && extractionResult ? (
+            ) : extractionConfirmed && extractionResult && analysisPhase === "idle" ? (
               <ResumeHealthCheck
                 profession={extractionResult.profession}
                 careerLevel={extractionResult.careerLevel}
                 sectionCoverage={extractionResult.sectionCoverage}
+                onAnalyze={handleAnalyze}
+                isAnalyzing={isAnalyzing}
               />
+            ) : analysisPhase === "computing_metrics" ? (
+              <Card padding="xl" className="text-center">
+                <Spinner size="lg" className="mb-6" />
+                <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                  Computing metrics...
+                </h2>
+                <p className="text-stone-500 text-lg">
+                  Analyzing word counts, bullet quality, and formatting.
+                </p>
+              </Card>
+            ) : analysisPhase === "analyzing" ? (
+              <Card padding="xl" className="text-center">
+                <Spinner size="lg" className="mb-6" />
+                <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                  AI Analysis in Progress
+                </h2>
+                {analysisProgress && (
+                  <p className="text-stone-500 text-lg">
+                    Scoring: {analysisProgress.sectionTitle}
+                  </p>
+                )}
+              </Card>
+            ) : analysisPhase === "complete" && analysisResult && extractionResult ? (
+              <div className="space-y-6">
+                <AnalysisResults
+                  result={analysisResult}
+                  sectionTitles={
+                    new Map(
+                      extractionResult.document.sections.map((s) => [s.id, s.title]),
+                    )
+                  }
+                />
+                <div className="text-center">
+                  <Button variant="secondary" onClick={handleNewAnalysis}>
+                    Analyze Another Resume
+                  </Button>
+                </div>
+              </div>
             ) : isAnalyzing ? (
               <Card padding="xl" className="text-center">
                 <Spinner size="lg" className="mb-6" />
