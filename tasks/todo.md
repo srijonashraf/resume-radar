@@ -11,9 +11,9 @@ Full plan: `tasks/plan.md`
 | 3 | 3.2: Stage 4 tailor agent | ✅ | 3.1 |
 | 4 | 3.5: Client API + SSE types | ✅ | — |
 | 5 | 3.4: Tailor pipeline + route | ✅ | 3.2, 3.3 |
-| 6 | 3.6: Store extensions | ⬜ | 3.5 |
-| 7 | 3.7: Tailor results UI | ⬜ | 3.6 |
-| 8 | 3.8: Integration verification | ⬜ | 3.4, 3.7 |
+| 6 | 3.6: Store extensions | ✅ | 3.5 |
+| 7 | 3.7: Tailor results UI | ✅ | 3.6 |
+| 8 | 3.8: Integration verification | ✅ | 3.4, 3.7 |
 
 ## Parallel Groups
 
@@ -38,8 +38,8 @@ Full plan: `tasks/plan.md`
 ## Verification Gate
 
 After 3.8:
-- [ ] `tsc --noEmit` passes all 3 packages
-- [ ] `vitest run` passes server + client
+- [x] `tsc --noEmit` passes all 3 packages
+- [x] `vitest run` passes server + client
 - [ ] Manual: upload → extract → analyze → tailor → rewrites display
 - [ ] Manual: accept/reject persists across page refresh
 - [ ] Manual: MISSING rewrites show learning path cards

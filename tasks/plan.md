@@ -1,12 +1,12 @@
-# Phase 2: Analysis + ATS Scoring — Implementation Plan
+# Phase 3: Honest Tailoring — Implementation Plan
 
 ## Context
 
-Phase 0 (shared types, schemas, KB, migrations) and Phase 1 (validation + extraction pipeline) are COMPLETE. Phase 1 produces structured `ResumeDocument` with sections, profession detection, career level, and section coverage — but NO scores, metrics, feedback, or ATS analysis.
+Phases 0-2 complete. Upload → extract → analyze → results pipeline works end-to-end with 192 tests. Phase 3 adds the core product differentiator: per-bullet AI rewrites with honest gap classification. No fabricated skills.
 
-Phase 2 builds the deterministic + AI analysis layer on top of extraction output. **Old `/analyze` route and its companions will be removed** — no legacy compatibility needed, we're in development.
+**Spec**: `docs/spec.md` lines 398-408 (Phase 3 success criteria), lines 449-475 (architecture).
 
-**Integration point**: `ResumeHealthCheck.tsx:136` — disabled "Continue to Analysis" button becomes the trigger.
+**Pipeline stage 4**: `ResumeDocument + AtsReport + Issues → Rewrite[]`
 
 ---
 
@@ -14,387 +14,288 @@ Phase 2 builds the deterministic + AI analysis layer on top of extraction output
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Route | Replace `/analyze` in-place. Remove old `parseAndScore` + `generateFeedback` + old 4-table composite writes | Dev stage — no legacy needed. Clean slate |
-| Persistence | New pipeline v2 tables (`resume_section_scores`, `resume_ats_keywords`) | Already exist from Phase 0 migration |
-| Client flow | Unified: extraction → user reviews → "Continue to Analysis" triggers analysis SSE | Single coherent pipeline |
-| SSE | Separate SSE connection for analysis | User reviews sections before proceeding |
-| Scoring | All numbers from code, not AI | Deterministic = reproducible = trustworthy |
-| Derived endpoints | `/job-match`, `/career-map`, `/tailor` temporarily non-functional until rebuilt against new data model in Phase 3 | Can't read from tables that no longer get written to |
+| Classification timing | Single tool call (classify + rewrite together) | Two-pass would double token cost. Classification context must inform the rewrite. |
+| Skill fabrication prevention | Prompt guardrails + post-processing validation | Prompt rules forbid fabrication. Post-processing cross-references `keywordsAdded` against `missingKeywords`. REWRITTEN + missing keyword → downgrade to REFRAMED. |
+| Which bullets to process | Only flagged items (medium+ severity) + JD-related items | Processing all bullets wastes tokens on content that doesn't need improvement. |
+| MISSING learning paths | KB lookup first, AI fallback | KB has `learningResources` per skill. If no match, AI generates inline. |
+| SSE events | `tailoring_start`, `tailoring_section`, `tailoring_rewrite`, `tailoring_complete` | Matches existing SSE pattern. Per-rewrite events enable progressive UI. |
 
 ---
 
-## Cleanup Scope (old `/analyze` pipeline removal)
+## Existing Infrastructure (reuse)
 
-**Files to remove or gut**:
-- `server/src/services/aiService.ts` — remove `parseAndScore()`, `generateFeedback()`, old `CoreAnalysisData`, `FeedbackData` types, old schemas. Keep `generateJson`, `callTool`, `generateCareerMap`, `compareWithJobDescription`, `tailorResume` (they get rebuilt later or kept temporarily)
-- `server/src/schemas.ts` — remove `coreAnalysisDataSchema`, `feedbackDataSchema`, `notAResumeSchema`, `compositeRowSchema`. Keep `jobComparisonResultSchema`, `careerMapResultSchema`, `tailorResultSchema` temporarily
-- `server/src/services/historyService.ts` — remove `createAnalysis()` (4-table composite write), `COMPOSITE_SELECT`/`COMPOSITE_JOINS`, `getAnalysisContext()`, `getUserHistory()`/`getUserHistoryCount()` (old composite reads), `getAnalysisById()` (old composite read). Rebuild against new tables in this phase or later
-- `server/src/routes/api.ts` — remove old `POST /analyze` handler. Remove `/history` endpoints temporarily (will rebuild against new schema). Keep `/job-match`, `/career-map`, `/tailor` routes but they'll 503 until Phase 3
-- `client/src/services/api.ts` — remove `analyzeResumeStream()` (old SSE). Replace with new analysis function
-- `client/src/store/useStore.ts` — remove old `analysisResults`, `analysisPhase` ("scoring"/"feedback"/"complete"). Replace with new v2 state
-- `client/src/types/api-responses.ts` — remove `SSEScoringPayload`, `SSEFeedbackPayload`, `SSECompletePayload`, old `AnalysisCompositeResponse`
-- `client/src/components/analytics/AnalysisResults.tsx` — rebuild against new `AnalysisResultV2` shape
-- `client/src/components/analytics/AnalysisHistory.tsx` — temporarily disabled
-- `client/src/components/analytics/AnalyticsDashboard.tsx` — temporarily disabled
-- `client/src/components/analytics/AnalysisRadarChart.tsx` — adapt to new score shape
+| What | Where | Notes |
+|------|-------|-------|
+| `Rewrite` type + Zod schema | `shared/src/types/rewrite.ts`, `shared/src/schemas/rewrite.ts` | Already defined with tests |
+| `resume_tailor_rewrites` table | Migration `20260426000003_add_pipeline_v2_tables.js` | Schema matches types |
+| `callTool()` pattern | `server/src/services/aiService.ts` | Dual-schema tools, Zod validation |
+| Agent iteration pattern | `server/src/stages/stage3_analysis.ts` | Per-section loop, SSE progress, graceful errors |
+| Persistence pattern | `server/src/db/sections.ts` | Transactions, sectionIdMap for UUID resolution |
+| KB learning resources | `server/src/knowledge/types.ts` `LearningPath` | `courses`, `projects`, `timeline`, `resumeBulletExample` |
+| JD keyword extraction | `server/src/stages/analysisAgentTools.ts` `extractJdKeywordsTool` | Reuse for tailor pipeline |
+| ATS keyword matching | `server/src/stages/atsScoring.ts` `computeKeywordMatchScore` | Reuse for tailor pipeline |
+| SSE client pattern | `client/src/services/api.ts` `analyzeResumeStream()` | Same fetch + ReadableStream pattern |
+| UI primitives | `client/src/components/ui/` | `Badge`, `Card`, `Button`, `AccordionItem`, `Spinner` |
 
-**Old DB tables kept but no longer written to**: `resume_metrics`, `resume_parsed_data`, `resume_feedback`. New migration can drop them later.
+---
+
+## Tasks
+
+### 3.1: Tailor Agent Tools + Prompt
+
+**Files**: `server/src/stages/tailorTools.ts` (new), `server/src/stages/tailorPrompts.ts` (new)
+
+**What**: Define two AI tools following the dual-schema pattern (JSON Schema for AI + Zod for validation).
+
+**Tool 1: `classify_skills`** — Called once before rewriting. Classifies each JD skill:
+- Params: `{ classifications: Array<{ skill: string, classification: "HAS" | "ADJACENT" | "LACKS", evidence: string, adjacentSkill?: string }> }`
+
+**Tool 2: `rewrite_bullet`** — Per-bullet rewrite with gap classification:
+- Params: `{ sectionId, itemId, field, before, after, rationale, keywordsAdded: string[], gapClassification: "REWRITTEN"|"REFRAMED"|"MISSING", learningPath?: { courses, projects, timeline, targetBullet } }`
+
+**System prompt rules**:
+1. NEVER fabricate skills
+2. Classify skills first via `classify_skills`
+3. REWRITTEN = user has skill, bullet just needs better framing with JD keywords
+4. REFRAMED = user lacks exact skill but has adjacent experience
+5. MISSING = user genuinely lacks skill → learning path, not fabricated bullet
+6. For MISSING, `after` is aspirational (what bullet COULD look like after learning)
+7. Only surface implicit skills user already demonstrates
+8. `keywordsAdded` must trace to existing resume experience
+
+**Acceptance**:
+- Both tools match `ToolDefinition` type
+- Zod schemas validate valid/invalid inputs
+- System prompt contains all 8 fabrication-prevention rules
+- `tsc --noEmit` passes
+
+---
+
+### 3.2: Stage 4 Tailor Agent
+
+**Files**: `server/src/stages/stage4_tailoring.ts` (new)
+
+**What**: `runTailorAgent(document, atsReport, analysisResult, jdText, kb, sendSSE) → Rewrite[]`
+
+**Algorithm**:
+1. Build context from sections, ATS keywords, analysis issues (medium+ severity), KB learning resources
+2. Call `classify_skills` once → get skill classification map
+3. For each section with issues or JD keyword relevance:
+   - SSE: `tailoring_section`
+   - For each flagged item:
+     - Call `rewrite_bullet` with classification context
+     - Zod validate response
+     - Fabrication check: REWRITTEN + missing keyword → downgrade to REFRAMED
+     - Assign UUID, set `accepted: null`
+     - SSE: `tailoring_rewrite`
+4. Return all rewrites
+
+**Pattern**: Same as `stage3_analysis.ts` — per-section loop, `callTool()` per item, graceful error handling.
+
+**Depends on**: 3.1
+
+**Acceptance**:
+- Returns `Rewrite[]` with correct shape
+- SSE events emitted in order
+- Fabrication check runs and can downgrade
+- Failed single bullet doesn't crash pipeline
+- `tsc --noEmit` passes
+
+---
+
+### 3.3: Rewrite Persistence
+
+**Files**: `server/src/db/rewrites.ts` (new)
+
+**What**: Three functions following `sections.ts` pattern:
+
+**`saveRewrites({ analysisId, rewrites })`**: Transaction, sectionIdMap for UUID resolution, DELETE + INSERT (upsert pattern)
+
+**`loadRewrites(analysisId)`**: Join `resume_tailor_rewrites` with `resume_sections` to reconstruct `sectionId`. Return `Rewrite[]`.
+
+**`updateRewriteAcceptance(rewriteId, accepted)`**: Simple UPDATE. Return updated row.
+
+**Depends on**: Nothing (DB table exists from Phase 0)
+
+**Acceptance**:
+- Save/load round-trip produces equivalent data
+- Parameterized queries throughout
+- Transaction rollback on error
+- `tsc --noEmit` passes
+
+---
+
+### 3.4: Tailor Pipeline + Route
+
+**Files**: `server/src/services/pipelineService.ts` (edit), `server/src/routes/api.ts` (edit)
+
+**What**:
+
+**`runTailorPipeline({ analysisId, jobDescription }, sendSSE)`** in pipelineService:
+1. Load document via `loadAnalysisDocument(analysisId)`
+2. Load analysis results via `loadAnalysisResults(analysisId)`
+3. Re-detect profession, get KB
+4. Extract JD keywords (reuse `extractJdKeywordsTool`)
+5. Call `runTailorAgent()`
+6. Persist via `saveRewrites()`
+7. SSE: `tailoring_complete`
+
+**Routes in api.ts** (replace 503 stubs):
+- `POST /tailor` — SSE streaming, requires auth, ownership check
+- `GET /tailor/:analysisId` — load persisted rewrites, requires auth
+- `PATCH /tailor/rewrite/:rewriteId` — accept/reject, requires auth, ownership check
+
+**Depends on**: 3.2, 3.3
+
+**Acceptance**:
+- POST streams SSE events, returns rewrites
+- GET returns persisted rewrites
+- PATCH updates acceptance
+- Ownership checks on all endpoints
+- `tsc --noEmit` passes
+
+---
+
+### 3.5: Client API + SSE Types
+
+**Files**: `client/src/types/api-responses.ts` (edit), `client/src/services/api.ts` (edit)
+
+**What**:
+
+SSE types: `SSETailoringStart`, `SSETailoringSection`, `SSETailoringRewrite`, `SSETailoringComplete`
+
+API functions:
+- `tailorResumeStream(analysisId, jobDescription, callbacks)` — SSE streaming, same pattern as `analyzeResumeStream()`
+- `fetchRewrites(analysisId)` — GET
+- `patchRewriteAcceptance(rewriteId, accepted)` — PATCH
+
+**Depends on**: Nothing (can start parallel with server tasks)
+
+**Acceptance**:
+- `tailorResumeStream()` parses all SSE event types
+- Error handling matches existing pattern
+- `tsc --noEmit` passes
+
+---
+
+### 3.6: Store Extensions
+
+**Files**: `client/src/store/useStore.ts` (edit)
+
+**What**: Add tailor state:
+
+```
+tailorPhase: "idle" | "classifying" | "tailoring" | "complete" | "error"
+tailorProgress: { sectionId, sectionTitle, index, total } | null
+tailorRewrites: Rewrite[]
+tailorStats: { rewritten, reframed, missing, total } | null
+```
+
+Actions: `setTailorPhase`, `setTailorProgress`, `addTailorRewrite` (incremental SSE append), `setTailorRewrites`, `acceptTailorRewrite`, `rejectTailorRewrite`, `clearTailorState`
+
+`clearCurrentAnalysis` also clears tailor state.
+
+**Depends on**: 3.5
+
+**Acceptance**:
+- Phase transitions correct
+- `addTailorRewrite` appends incrementally
+- Accept/reject update immutably
+- Existing state unaffected
+- `tsc --noEmit` passes
+
+---
+
+### 3.7: Tailor Results UI
+
+**Files** (new): `client/src/components/tailor/TailorResults.tsx`, `RewriteCard.tsx`, `ClassificationBadge.tsx`, `LearningPathCard.tsx`, `RewriteDiff.tsx`, `RewriteManager.tsx`
+
+**What**:
+
+| Component | Purpose |
+|-----------|---------|
+| `ClassificationBadge` | REWRITTEN (success), REFRAMED (warning), MISSING (info) |
+| `RewriteCard` | Before/after diff, rationale, keywords, accept/reject buttons |
+| `LearningPathCard` | MISSING skill: courses, projects, timeline, target bullet |
+| `RewriteDiff` | Word-level before/after comparison |
+| `RewriteManager` | Accept All / Reject All / filter by classification |
+| `TailorResults` | Container: groups by section, shows stats, streaming progress |
+
+Integration: "Tailor Resume" button on analysis results page (when JD present + analysis complete).
+
+**Depends on**: 3.6
+
+**Acceptance**:
+- All three classification badges render with correct colors
+- Accept/reject updates visual state
+- LearningPathCard renders for MISSING rewrites
+- RewriteManager filters work
+- Streaming progress shows during tailoring
+- `tsc --noEmit` passes
+
+---
+
+### 3.8: Integration Verification
+
+**What**: End-to-end validation against spec success criteria:
+- `tsc --noEmit` all 3 packages
+- `vitest run` server + client
+- Manual: upload → extract → analyze → tailor → rewrites display
+- Manual: accept/reject persists across page refresh
+- Manual: no fabricated skills in REWRITTEN classification
+
+**Depends on**: All previous
 
 ---
 
 ## Dependency Graph
 
 ```
-T0 (Cleanup old pipeline)
-  │
-  v
-T7 (Shared Types)
-  │
-  ├─→ T1 (Stage 2 Metrics) ──┐
-  ├─→ T2 (ATS Scoring)  ─────┤
-  └─→ T3 (Analysis Tools) ───┤
-                              │
-         T4 (Persistence) ←───┤ (needs T1 output types)
-                              │
-         T5 (Stage 3 Agent) ←─┘ (needs T1, T3)
-                │
-                v
-         T6 (Pipeline Orchestrator + Route) (needs T1-T5)
-                │
-                v
-         T8 (Client API + Store) (needs T6 SSE contract)
-                │
-                v
-         T9 (Analysis Results UI) (needs T8)
-                │
-                v
-         T10 (Integration Verification)
+3.1 (Tools) ──→ 3.2 (Agent) ──→ 3.4 (Pipeline+Route) ──┐
+                                                          ├──→ 3.8 (Verify)
+3.3 (DB) ─────────────────────→ 3.4 ────────────────────┘
+
+3.5 (Client API) ──→ 3.6 (Store) ──→ 3.7 (UI) ──→ 3.8
 ```
 
-**Critical path**: T0 → T7 → T1 → T5 → T6 → T8 → T9 → T10
+**Parallel**: 3.1 + 3.3 + 3.5 can start simultaneously. 3.2 starts after 3.1.
 
-**Parallelizable**: T1, T2, T3 can run in parallel after T7. T4 can start after T1.
-
----
-
-## Task Breakdown
-
-### T0: Cleanup Old Pipeline
-
-**Acceptance**: Old `/analyze` route removed. `parseAndScore`, `generateFeedback` removed from aiService. Old composite schemas/history removed. `tsc --noEmit` passes on server. Old client analysis flow removed.
-
-**Files**:
-- `server/src/services/aiService.ts` (edit) — remove `parseAndScore`, `generateFeedback`, `CoreAnalysisData`, `FeedbackData`, related helper types
-- `server/src/schemas.ts` (edit) — remove `coreAnalysisDataSchema`, `feedbackDataSchema`, `notAResumeSchema`, `compositeRowSchema`
-- `server/src/services/historyService.ts` (edit) — remove `createAnalysis`, `COMPOSITE_SELECT`/`COMPOSITE_JOINS`, old composite reads. Keep `saveTokenUsage`, `getCachedCareerMap`, `saveCareerMap`. Stub or remove history endpoints that rely on old composite
-- `server/src/routes/api.ts` (edit) — remove `POST /analyze` handler. Comment out or stub `/history*` endpoints that break. Mark `/job-match`, `/career-map`, `/tailor` as temporarily returning 503
-- `client/src/services/api.ts` (edit) — remove `analyzeResumeStream`
-- `client/src/store/useStore.ts` (edit) — remove `analysisResults`, old `analysisPhase`, related actions. Keep extraction state
-- `client/src/types/api-responses.ts` (edit) — remove `SSEScoringPayload`, `SSEFeedbackPayload`, `SSECompletePayload`, `AnalysisCompositeResponse`
-
-**Verify**: `cd server && npx tsc --noEmit` && `cd client && npx tsc --noEmit`
+**Critical path**: 3.1 → 3.2 → 3.4 → 3.8
 
 ---
 
-### T7: Shared Analysis v2 Types
+## New Files Summary
+
+| Location | File | Purpose |
+|----------|------|---------|
+| server/stages | `tailorTools.ts` | Tool definitions + Zod schemas |
+| server/stages | `tailorPrompts.ts` | System/user prompt builders |
+| server/stages | `stage4_tailoring.ts` | Tailor agent (`runTailorAgent`) |
+| server/db | `rewrites.ts` | `saveRewrites`, `loadRewrites`, `updateRewriteAcceptance` |
+| client/components/tailor | `TailorResults.tsx` | Main container |
+| client/components/tailor | `RewriteCard.tsx` | Individual rewrite card |
+| client/components/tailor | `ClassificationBadge.tsx` | REWRITTEN/REFRAMED/MISSING badge |
+| client/components/tailor | `LearningPathCard.tsx` | MISSING learning path display |
+| client/components/tailor | `RewriteDiff.tsx` | Before/after diff |
+| client/components/tailor | `RewriteManager.tsx` | Accept All/Reject All/filter toolbar |
+
+## Modified Files Summary
+
+| File | Changes |
+|------|---------|
+| `server/src/services/pipelineService.ts` | Add `runTailorPipeline()` |
+| `server/src/routes/api.ts` | Replace 3 x 503 stubs with real handlers |
+| `client/src/types/api-responses.ts` | Add tailoring SSE types |
+| `client/src/services/api.ts` | Add `tailorResumeStream`, `fetchRewrites`, `patchRewriteAcceptance` |
+| `client/src/store/useStore.ts` | Add tailor state + actions |
+
+## Verification
 
-**Acceptance**: New types importable from `@resumetra/shared`. `tsc --noEmit` passes all 3 packages.
-
-**Files**:
-- `shared/src/types/metrics.ts` (new) — `SectionMetric`, `SectionScore`, `SectionIssue`, `ReadabilityAssessment`, `AnalysisResultV2`
-- `shared/src/schemas/metrics.ts` (new) — matching Zod schemas
-- `shared/src/types/index.ts` (edit) — add exports
-- `shared/src/schemas/index.ts` (edit) — add exports
-
-**New types**:
-```typescript
-interface SectionMetric {
-  sectionId: string;
-  title: string;
-  wordCount: number;
-  bulletCount: number;
-  avgBulletWordCount: number;
-  bulletsWithActionVerb: number;
-  bulletsWithMetric: number;
-}
-
-interface SectionIssue {
-  itemId: string | null;
-  type: string;
-  severity: "high" | "medium" | "low";
-  description: string;
-  suggestion: string;
-}
-
-interface SectionScore {
-  sectionId: string;
-  contentScore: number;    // 0-10
-  impactScore: number;     // 0-10
-  issues: SectionIssue[];
-}
-
-interface ReadabilityAssessment {
-  score: number;           // 0-10
-  issues: SectionIssue[];
-}
-
-interface AnalysisResultV2 {
-  deterministicMetrics: DeterministicMetrics;
-  sectionMetrics: SectionMetric[];
-  sectionScores: SectionScore[];
-  readability: ReadabilityAssessment;
-  atsReport: AtsReport | null;
-  keywordFrequency: Record<string, number>;
-}
-```
-
-**Verify**: `cd shared && npx tsc --noEmit`
-
----
-
-### T1: Deterministic Metrics Engine
-
-**Acceptance**: Pure function. Same input = identical output. Zero AI. Tests pass.
-
-**Files**:
-- `server/src/stages/stage2_metrics.ts` (new)
-- `server/src/stages/__tests__/stage2_metrics.test.ts` (new)
-
-**Function**:
-```typescript
-interface MetricsOutput extends DeterministicMetrics {
-  perSection: SectionMetric[];
-  keywordFrequency: Record<string, number>;
-}
-
-function computeDeterministicMetrics(
-  document: ResumeDocument,
-  kb: ProfessionKnowledgeBase,
-  sectionCoverage: ExtractionResult["sectionCoverage"]
-): MetricsOutput
-```
-
-**Computes**:
-1. Word count per section + total — iterate all text fields, split whitespace, count
-2. Bullet count — count `item.bullets?.length ?? 0` for experience-type sections
-3. Avg bullet word count — total bullet words / bullet count
-4. Action verb presence — first word of each bullet → lookup in `kb.actionVerbs.strong[]` / `weak[]`
-5. Metric presence — regex patterns from `kb.metricPatterns[]` against each bullet
-6. Section coverage — pass through from extraction result
-7. ATS formatting checks — detect table sections, non-standard bullet chars, produce `FormattingIssue[]`
-8. Keyword frequency — tokenize all text, normalize, count, exclude stop words
-
-**Verify**: `npx vitest run server/src/stages/__tests__/stage2_metrics.test.ts`
-
----
-
-### T2: ATS Scoring Engine
-
-**Acceptance**: Pure functions. Trigram similarity correct. No AI. Tests pass.
-
-**Files**:
-- `server/src/stages/atsScoring.ts` (new)
-- `server/src/stages/__tests__/atsScoring.test.ts` (new)
-
-**Functions**:
-```typescript
-function computeAtsFormattingScore(
-  metrics: DeterministicMetrics,
-  kb: ProfessionKnowledgeBase
-): { score: number; issues: FormattingIssue[] }
-
-function computeKeywordMatchScore(
-  resumeKeywords: string[],
-  jdKeywords: string[],
-  sectionCoverage: Record<string, boolean>
-): {
-  exactMatchScore: number;
-  partialMatchScore: number;
-  sectionCoverageScore: number;
-  matchedKeywords: string[];
-  missingKeywords: string[];
-  partialMatches: PartialMatch[];
-  overallAtsScore: number;
-}
-```
-
-**Formula**: `atsScore = (exact * 0.5) + (partial * 0.2) + (sectionCoverage * 0.2) + (formatting * 0.1)`
-
-**Partial matching**: Character trigrams, Jaccard similarity >= 0.8
-
-**Verify**: `npx vitest run server/src/stages/__tests__/atsScoring.test.ts`
-
----
-
-### T3: Analysis Agent Tools + Prompts
-
-**Acceptance**: Tool definitions valid OpenAI format. Zod schemas validate/reject. Tests pass.
-
-**Files**:
-- `server/src/stages/analysisTools.ts` (new) — tool defs + Zod schemas
-- `server/src/stages/analysisPrompts.ts` (new) — system prompt
-- `server/src/stages/__tests__/analysisTools.test.ts` (new)
-
-**Tools**:
-- `extract_jd_keywords` — extract skills/tools/requirements from JD text
-- `score_section` — rate section content + impact (0-10 each)
-- `flag_issue` — identify specific problem with severity + suggestion
-- `assess_readability` — evaluate overall document language
-
-**Pattern**: Same as `extractTools.ts` — `ToolDefinition` + Zod response schema pairs.
-
-**Verify**: `npx vitest run server/src/stages/__tests__/analysisTools.test.ts`
-
----
-
-### T4: Pipeline v2 Persistence
-
-**Acceptance**: Transaction-wrapped writes to `resume_section_scores` + `resume_ats_keywords`. Existing `saveSections` untouched.
-
-**Files**:
-- `server/src/db/sections.ts` (edit) — add `saveAnalysisResults`, `loadAnalysisResults`
-
-**Functions**:
-```typescript
-async function saveAnalysisResults(input: {
-  analysisId: string;
-  sectionMetrics: SectionMetric[];
-  sectionScores: SectionScore[];
-  atsReport: AtsReport | null;
-  keywordFrequency: Record<string, number>;
-}): Promise<void>
-
-async function loadAnalysisResults(analysisId: string): Promise<AnalysisResultV2 | null>
-```
-
-**Tables**: `resume_section_scores` (per-section scores + issues), `resume_ats_keywords` (per-analysis keyword data)
-
-**Verify**: Manual test with dev DB or mock pool test
-
----
-
-### T5: Stage 3 Analysis Agent
-
-**Acceptance**: Agent uses tool calls, receives metrics as ground truth, does NOT recompute. SSE per section. Tests pass (mocked AI).
-
-**Files**:
-- `server/src/stages/stage3_analysis.ts` (new)
-- `server/src/stages/__tests__/stage3_analysis.test.ts` (new)
-
-**Function**:
-```typescript
-async function runAnalysisAgent(
-  document: ResumeDocument,
-  metrics: MetricsOutput,
-  kb: ProfessionKnowledgeBase,
-  sendSSE: PipelineSSESender,
-): Promise<{ sectionScores: SectionScore[]; readability: ReadabilityAssessment }>
-```
-
-**Flow**: For each section → SSE "analyzing" → `callTool(score_section)` → `callTool(flag_issue)` if problems → collect results. Final: `callTool(assess_readability)`.
-
-**Pattern**: Same as `stage1_extract.ts` — uses `callTool` from `aiService.ts`.
-
-**Verify**: `npx vitest run server/src/stages/__tests__/stage3_analysis.test.ts`
-
----
-
-### T6: Pipeline Orchestrator + Route
-
-**Acceptance**: `POST /analyze` replaced with new pipeline. SSE events stream. Results persist. Tests pass.
-
-**Files**:
-- `server/src/services/pipelineService.ts` (edit) — add `runAnalysisPipeline`
-- `server/src/routes/api.ts` (edit) — add new `POST /analyze` route using new pipeline
-
-**`runAnalysisPipeline` flow**:
-1. Load `ResumeDocument` from `resume_sections` by `analysisId`
-2. Load profession + KB
-3. SSE `"computing_metrics"` → `computeDeterministicMetrics()`
-4. SSE `"metrics_complete"` → send metrics
-5. If JD provided: `extractJdKeywords` AI call → `computeKeywordMatchScore`
-6. Per section: SSE `"analyzing"` → `runAnalysisAgent()`
-7. Persist via `saveAnalysisResults()`
-8. SSE `"complete"` → send full `AnalysisResultV2`
-
-**Route**: `{ analysisId, jobDescription? }` → SSE stream. Require auth. Validate ownership.
-
-**Verify**: Manual: extract resume → get analysisId → call `/analyze` → verify SSE events + DB records
-
----
-
-### T8: Client API + Store
-
-**Acceptance**: SSE streaming works for new `/analyze`. Store phases update correctly. `tsc --noEmit` passes.
-
-**Files**:
-- `client/src/services/api.ts` (edit) — add `analyzeResumeStream` (new version)
-- `client/src/types/api-responses.ts` (edit) — add SSE event types for new analysis
-- `client/src/store/useStore.ts` (edit) — add new analysis state
-
-**New SSE types**: `SSEMetricsCompletePayload`, `SSEAnalyzingProgress`, `SSEAnalysisCompletePayload`
-
-**Store additions**: `analysisResult: AnalysisResultV2 | null`, `analysisPhase` ("idle" | "computing_metrics" | "analyzing" | "complete" | "error"), `setAnalysisResult`, `setAnalysisPhase`
-
-**Pattern**: Same as `extractResumeStream()` in `api.ts`
-
-**Verify**: `cd client && npx tsc --noEmit`
-
----
-
-### T9: Analysis Results UI
-
-**Acceptance**: "Continue to Analysis" button works. Results show metrics, scores, ATS report. Issues ordered by severity.
-
-**Files**:
-- `client/src/components/analytics/AnalysisResults.tsx` (edit — rebuild) — adapt to new `AnalysisResultV2` shape
-- `client/src/components/analytics/AtsKeywordReport.tsx` (new) — keyword breakdown
-- `client/src/components/analytics/SectionScoreCard.tsx` (new) — per-section scores
-- `client/src/components/analytics/AnalysisRadarChart.tsx` (edit) — adapt to new metrics
-- `client/src/components/upload/ResumeHealthCheck.tsx` (edit) — wire "Continue to Analysis" button
-- `client/src/pages/Dashboard.tsx` (edit) — replace old analysis flow with new pipeline
-
-**ResumeHealthCheck change**: Remove `disabled` from button. On click → call `analyzeResumeStream(analysisId)` → show progress → render `AnalysisResults`.
-
-**Dashboard flow**: Extraction complete → HealthCheck → "Continue to Analysis" → SSE progress → Results display
-
-**Verify**: Upload PDF → extract → click "Continue to Analysis" → verify results display
-
----
-
-### T10: Integration Verification
-
-**Verify**:
 1. `cd shared && npx tsc --noEmit` — 0 errors
 2. `cd server && npx tsc --noEmit` — 0 errors
 3. `cd client && npx tsc --noEmit` — 0 errors
-4. `cd server && npx vitest run` — all tests pass
-5. `cd client && npx vitest run` — all tests pass
-6. Manual: upload resume → extract → analyze → verify results
-7. Manual: call `/analyze` twice with same analysisId → identical deterministic scores
-8. Manual: no JD case shows metrics + section scores without ATS keyword report
-9. Manual: verify `/extract` still works independently
-
----
-
-## Checkpoint
-
-After T10, verify spec Phase 2 success criteria:
-- [ ] Deterministic word counts match manual count within ±2
-- [ ] Bullet quality scoring: action verb + metric presence — all code
-- [ ] Career level detection matches manual assessment
-- [ ] ATS formatting checks detect tables, columns, decorative bullets
-- [ ] With JD: keyword extraction (AI) + exact/partial matching (code)
-- [ ] ATS score traces to specific keywords, sections, checks — explainable
-- [ ] Same resume twice = identical scores
-- [ ] Analysis Results UI shows issues by severity with fixes
-- [ ] ATS Report UI shows matched/missing keywords with score breakdown
-
----
-
-## Risk Areas
-
-1. **Trigram similarity performance**: O(n*m) for large keyword sets. Mitigation: limit JD keywords to top 50, filter exact matches first.
-2. **AI agent tool call failures**: `callTool` already has Zod validation + retry (proven in extraction pipeline).
-3. **Derived endpoints temporarily down**: `/job-match`, `/career-map`, `/tailor` return 503 until rebuilt in Phase 3. Acceptable for dev stage.
-4. **Type explosion**: Namespace v2 types clearly. Old types fully removed, not duplicated.
+4. `cd server && npx vitest run` — all pass
+5. `cd client && npx vitest run` — all pass
+6. Manual: upload → extract → analyze → tailor → rewrites with correct classifications
+7. Manual: accept/reject persists across page refresh
+8. Manual: MISSING rewrites show learning path cards

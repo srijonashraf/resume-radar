@@ -7,9 +7,10 @@ import PdfUploader from "../components/upload/PdfUploader";
 import SectionConfirmation from "../components/upload/SectionConfirmation";
 import ResumeHealthCheck from "../components/upload/ResumeHealthCheck";
 import AnalysisResults from "../components/analytics/AnalysisResults";
+import TailorResults from "../components/tailor/TailorResults";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
 import AppShell from "../components/app/AppShell";
-import { fetchUsage } from "../services/api";
+import { fetchUsage, tailorResumeStream, patchRewriteAcceptance } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -42,6 +43,17 @@ const Dashboard = () => {
   const setAnalysisPhase = useStore((state) => state.setAnalysisPhase);
   const setAnalysisProgress = useStore((state) => state.setAnalysisProgress);
   const jobDescription = useStore((state) => state.jobDescription);
+  const tailorPhase = useStore((state) => state.tailorPhase);
+  const tailorProgress = useStore((state) => state.tailorProgress);
+  const tailorRewrites = useStore((state) => state.tailorRewrites);
+  const tailorStats = useStore((state) => state.tailorStats);
+  const setTailorPhase = useStore((state) => state.setTailorPhase);
+  const setTailorProgress = useStore((state) => state.setTailorProgress);
+  const addTailorRewrite = useStore((state) => state.addTailorRewrite);
+  const setTailorRewrites = useStore((state) => state.setTailorRewrites);
+  const setTailorStats = useStore((state) => state.setTailorStats);
+  const acceptTailorRewrite = useStore((state) => state.acceptTailorRewrite);
+  const rejectTailorRewrite = useStore((state) => state.rejectTailorRewrite);
 
   useEffect(() => {
     const loadUsage = async () => {
@@ -148,6 +160,70 @@ const Dashboard = () => {
       setAnalysisPhase("error");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleTailor = async () => {
+    if (!extractionResult?.analysisId || !jobDescription) return;
+
+    setIsAnalyzing(true);
+    setError(null);
+    setTailorPhase("classifying");
+
+    try {
+      const result = await tailorResumeStream(
+        extractionResult.analysisId,
+        jobDescription,
+        {
+          onTailoringStart: () => setTailorPhase("tailoring"),
+          onTailoringSection: (data) => setTailorProgress(data),
+          onTailoringRewrite: (rewrite) => addTailorRewrite(rewrite),
+        },
+      );
+
+      setTailorRewrites(result.rewrites);
+      setTailorStats(result.stats);
+      setTailorPhase("complete");
+    } catch (err: unknown) {
+      console.error("Tailoring error:", err);
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Tailoring failed. Please try again.");
+      }
+      setTailorPhase("error");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAcceptRewrite = async (rewriteId: string) => {
+    acceptTailorRewrite(rewriteId);
+    try {
+      await patchRewriteAcceptance(rewriteId, true);
+    } catch {
+      rejectTailorRewrite(rewriteId);
+    }
+  };
+
+  const handleRejectRewrite = async (rewriteId: string) => {
+    rejectTailorRewrite(rewriteId);
+    try {
+      await patchRewriteAcceptance(rewriteId, false);
+    } catch {
+      acceptTailorRewrite(rewriteId);
+    }
+  };
+
+  const handleAcceptAll = () => {
+    for (const r of tailorRewrites) {
+      if (r.accepted === null) handleAcceptRewrite(r.id);
+    }
+  };
+
+  const handleRejectAll = () => {
+    for (const r of tailorRewrites) {
+      if (r.accepted === null) handleRejectRewrite(r.id);
     }
   };
 
@@ -282,6 +358,30 @@ const Dashboard = () => {
                     )
                   }
                 />
+                {tailorPhase === "idle" && jobDescription ? (
+                  <div className="text-center">
+                    <Button variant="primary" onClick={handleTailor} disabled={isAnalyzing}>
+                      Tailor Resume
+                    </Button>
+                  </div>
+                ) : null}
+                {tailorPhase !== "idle" && (
+                  <TailorResults
+                    tailorPhase={tailorPhase}
+                    tailorProgress={tailorProgress}
+                    rewrites={tailorRewrites}
+                    stats={tailorStats}
+                    sectionTitles={
+                      new Map(
+                        extractionResult.document.sections.map((s) => [s.id, s.title]),
+                      )
+                    }
+                    onAccept={handleAcceptRewrite}
+                    onReject={handleRejectRewrite}
+                    onAcceptAll={handleAcceptAll}
+                    onRejectAll={handleRejectAll}
+                  />
+                )}
                 <div className="text-center">
                   <Button variant="secondary" onClick={handleNewAnalysis}>
                     Analyze Another Resume
