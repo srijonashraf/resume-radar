@@ -16,7 +16,7 @@ Full plan: `tasks/plan.md`
 | 8 | T6: Pipeline orchestrator + route | ✅ | T1-T5 |
 | 9 | T8: Client API + store | ✅ | T6 |
 | 10 | T9: Analysis results UI | ✅ | T8 |
-| 11 | T10: Integration verification | ⬜ | T9 |
+| 11 | T10: Integration verification | ✅ | T9 |
 
 ## Parallel Groups
 
