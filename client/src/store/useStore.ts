@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AnalysisResultV2 } from "@resumetra/shared";
+import type { AnalysisResultV2, Rewrite } from "@resumetra/shared";
 
 export interface ResumeData {
   file: File | null;
@@ -138,6 +138,13 @@ export type AnalysisPhase =
   | "complete"
   | "error";
 
+export type TailorPhase =
+  | "idle"
+  | "classifying"
+  | "tailoring"
+  | "complete"
+  | "error";
+
 export interface ExtractionResult {
   document: {
     contact: {
@@ -205,6 +212,18 @@ interface StoreState {
   setAnalysisResult: (result: AnalysisResultV2 | null) => void;
   setAnalysisPhase: (phase: AnalysisPhase) => void;
   setAnalysisProgress: (progress: { sectionId: string; sectionTitle: string } | null) => void;
+  tailorPhase: TailorPhase;
+  tailorProgress: { sectionId: string; sectionTitle: string; index: number; total: number } | null;
+  tailorRewrites: Rewrite[];
+  tailorStats: { rewritten: number; reframed: number; missing: number; total: number } | null;
+  setTailorPhase: (phase: TailorPhase) => void;
+  setTailorProgress: (progress: { sectionId: string; sectionTitle: string; index: number; total: number } | null) => void;
+  addTailorRewrite: (rewrite: Rewrite) => void;
+  setTailorRewrites: (rewrites: Rewrite[]) => void;
+  setTailorStats: (stats: { rewritten: number; reframed: number; missing: number; total: number } | null) => void;
+  acceptTailorRewrite: (rewriteId: string) => void;
+  rejectTailorRewrite: (rewriteId: string) => void;
+  clearTailorState: () => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -220,6 +239,10 @@ const useStore = create<StoreState>()((set) => ({
   analysisResult: null,
   analysisPhase: "idle" as AnalysisPhase,
   analysisProgress: null,
+  tailorPhase: "idle" as TailorPhase,
+  tailorProgress: null,
+  tailorRewrites: [],
+  tailorStats: null,
   setResumeData: (data) => set({ resumeData: data }),
   setJobDescription: (description) => set({ jobDescription: description }),
   clearCurrentAnalysis: () =>
@@ -235,6 +258,10 @@ const useStore = create<StoreState>()((set) => ({
       analysisResult: null,
       analysisPhase: "idle",
       analysisProgress: null,
+      tailorPhase: "idle",
+      tailorProgress: null,
+      tailorRewrites: [],
+      tailorStats: null,
     }),
   setUsage: (usage) => set({ usage }),
   setTailorResult: (result) => set({ tailorResult: result }),
@@ -246,6 +273,31 @@ const useStore = create<StoreState>()((set) => ({
   setAnalysisResult: (result) => set({ analysisResult: result }),
   setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
+  setTailorPhase: (phase) => set({ tailorPhase: phase }),
+  setTailorProgress: (progress) => set({ tailorProgress: progress }),
+  addTailorRewrite: (rewrite) =>
+    set((state) => ({ tailorRewrites: [...state.tailorRewrites, rewrite] })),
+  setTailorRewrites: (rewrites) => set({ tailorRewrites: rewrites }),
+  setTailorStats: (stats) => set({ tailorStats: stats }),
+  acceptTailorRewrite: (rewriteId) =>
+    set((state) => ({
+      tailorRewrites: state.tailorRewrites.map((r) =>
+        r.id === rewriteId ? { ...r, accepted: true } : r,
+      ),
+    })),
+  rejectTailorRewrite: (rewriteId) =>
+    set((state) => ({
+      tailorRewrites: state.tailorRewrites.map((r) =>
+        r.id === rewriteId ? { ...r, accepted: false } : r,
+      ),
+    })),
+  clearTailorState: () =>
+    set({
+      tailorPhase: "idle",
+      tailorProgress: null,
+      tailorRewrites: [],
+      tailorStats: null,
+    }),
 }));
 
 export { useStore };

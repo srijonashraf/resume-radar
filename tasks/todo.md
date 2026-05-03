@@ -1,4 +1,4 @@
-# Phase 2: Analysis + ATS Scoring — Task Checklist
+# Phase 3: Honest Tailoring — Task Checklist
 
 Full plan: `tasks/plan.md`
 
@@ -6,42 +6,41 @@ Full plan: `tasks/plan.md`
 
 | # | Task | Status | Depends on |
 |---|------|--------|------------|
-| 1 | T0: Cleanup old `/analyze` pipeline | ✅ | — |
-| 2 | T7: Shared analysis v2 types | ✅ | T0 |
-| 3 | T1: Deterministic metrics engine | ✅ | T7 |
-| 4 | T2: ATS scoring engine | ✅ | T7 |
-| 5 | T3: Analysis agent tools + prompts | ✅ | T7 |
-| 6 | T4: Pipeline v2 persistence | ✅ | T1 |
-| 7 | T5: Stage 3 analysis agent | ✅ | T1, T3 |
-| 8 | T6: Pipeline orchestrator + route | ✅ | T1-T5 |
-| 9 | T8: Client API + store | ✅ | T6 |
-| 10 | T9: Analysis results UI | ✅ | T8 |
-| 11 | T10: Integration verification | ✅ | T9 |
+| 1 | 3.1: Tailor agent tools + prompt | ✅ | — |
+| 2 | 3.3: Rewrite persistence | ✅ | — |
+| 3 | 3.2: Stage 4 tailor agent | ✅ | 3.1 |
+| 4 | 3.5: Client API + SSE types | ✅ | — |
+| 5 | 3.4: Tailor pipeline + route | ✅ | 3.2, 3.3 |
+| 6 | 3.6: Store extensions | ⬜ | 3.5 |
+| 7 | 3.7: Tailor results UI | ⬜ | 3.6 |
+| 8 | 3.8: Integration verification | ⬜ | 3.4, 3.7 |
 
 ## Parallel Groups
 
-- **Group A** (after T7): T1 + T2 + T3 in parallel
-- **Group B** (after T1): T4 + T5 (T5 also needs T3)
-- **Group C** (after T6): T8, then T9
-- **Group D** (after T9): T10
+- **Group A** (start immediately): 3.1 + 3.3 + 3.5 in parallel
+- **Group B** (after 3.1): 3.2
+- **Group C** (after 3.2 + 3.3): 3.4
+- **Group D** (after 3.5): 3.6 → 3.7
+- **Group E** (after 3.4 + 3.7): 3.8
 
 ## Critical Path
 
-T0 → T7 → T1 → T5 → T6 → T8 → T9 → T10
+3.1 → 3.2 → 3.4 → 3.8
 
 ## Key Decisions
 
-- Old `/analyze` + `parseAndScore` + `generateFeedback` REMOVED. No legacy compat.
-- New `/analyze` route replaces old one in-place.
-- Old 4-table composite writes removed. New pipeline v2 tables used.
-- `/job-match`, `/career-map`, `/tailor` temporarily 503 until Phase 3.
-- Old history endpoints temporarily disabled until rebuilt against new schema.
+- Classification + rewrite in single tool call (not two-pass)
+- Only process flagged bullets (medium+ severity) + JD-related items
+- MISSING learning paths: KB lookup first, AI fallback
+- Fabrication prevention: prompt guardrails + post-processing validation
+- SSE events: `tailoring_start`, `tailoring_section`, `tailoring_rewrite`, `tailoring_complete`
 
 ## Verification Gate
 
-After T10:
+After 3.8:
 - [ ] `tsc --noEmit` passes all 3 packages
-- [ ] `vitest run` passes server
-- [ ] Manual: upload → extract → analyze → results display
-- [ ] Manual: same resume twice → identical deterministic scores
-- [ ] Manual: no JD case → metrics + section scores (no ATS keyword report)
+- [ ] `vitest run` passes server + client
+- [ ] Manual: upload → extract → analyze → tailor → rewrites display
+- [ ] Manual: accept/reject persists across page refresh
+- [ ] Manual: MISSING rewrites show learning path cards
+- [ ] Manual: no fabricated skills in REWRITTEN classification
