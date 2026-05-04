@@ -7,10 +7,10 @@ Full plan: `tasks/plan.md`
 | # | Task | Status | Depends on |
 |---|------|--------|------------|
 | 1 | 4.1: Three-layer editor store | ✅ | — |
-| 2 | 4.2: Resolved document → PdfResumeData mapper | ⬜ | 4.1 |
-| 3 | 4.3: Section editors — Experience + Text | ⬜ | 4.1 |
-| 4 | 4.4: Section editors — Skills + Education + Custom | ⬜ | 4.1 |
-| 5 | 4.5: EditorSidebar | ⬜ | 4.1 |
+| 2 | 4.2: Resolved document → PdfResumeData mapper | ✅ | 4.1 |
+| 3 | 4.3: Section editors — Experience + Text | ✅ | 4.1 |
+| 4 | 4.4: Section editors — Skills + Education + Custom | ✅ | 4.1 |
+| 5 | 4.5: EditorSidebar | ✅ | 4.1 |
 | 6 | 4.6: EditorToolbar + RewriteManager | ⬜ | 4.1, 4.2 |
 | 7 | 4.7: LivePreview | ⬜ | 4.1, 4.2 |
 | 8 | 4.8: ResumeEditorPanel (split-pane container) | ⬜ | 4.3–4.7 |
