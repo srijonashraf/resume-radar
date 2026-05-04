@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "../store/useStore";
+import { useResumeEditorStore } from "../store/useResumeEditorStore";
 import { extractResumeStream, analyzeResumeStream } from "../services/api";
 import { ApiError } from "../services/errors";
 import PdfUploader from "../components/upload/PdfUploader";
@@ -10,6 +11,7 @@ import AnalysisResults from "../components/analytics/AnalysisResults";
 import TailorResults from "../components/tailor/TailorResults";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
 import AppShell from "../components/app/AppShell";
+import ResumeEditorPanel from "../components/editor/ResumeEditorPanel";
 import { fetchUsage, tailorResumeStream, patchRewriteAcceptance } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
@@ -21,6 +23,7 @@ import { NoSymbolIcon } from "@heroicons/react/24/outline";
 const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
 
   const { user } = useAuth();
 
@@ -124,6 +127,8 @@ const Dashboard = () => {
 
   const handleNewAnalysis = () => {
     clearCurrentAnalysis();
+    useResumeEditorStore.getState().resetEditor();
+    setShowEditor(false);
     setError(null);
   };
 
@@ -227,8 +232,27 @@ const Dashboard = () => {
     }
   };
 
+  const handleOpenEditor = () => {
+    const document = extractionResult?.document;
+    if (document) {
+      useResumeEditorStore.getState().initialize(document, tailorRewrites);
+    }
+    setShowEditor(true);
+  };
+
   return (
     <AppShell>
+      {showEditor && (
+        <div className="h-screen">
+          <ResumeEditorPanel />
+          <div className="fixed bottom-4 right-4 z-50">
+            <Button variant="secondary" onClick={handleNewAnalysis}>
+              Analyze Another Resume
+            </Button>
+          </div>
+        </div>
+      )}
+      {!showEditor && (
       <div className="px-4 py-6 sm:px-0">
         {!resumeData ? (
           <div className="max-w-3xl mx-auto">
@@ -383,6 +407,13 @@ const Dashboard = () => {
                   />
                 )}
                 <div className="text-center">
+                  {tailorPhase === "complete" && (
+                    <div className="mb-4">
+                      <Button variant="primary" onClick={handleOpenEditor}>
+                        Open Editor
+                      </Button>
+                    </div>
+                  )}
                   <Button variant="secondary" onClick={handleNewAnalysis}>
                     Analyze Another Resume
                   </Button>
@@ -404,6 +435,7 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+      )}
     </AppShell>
   );
 };
