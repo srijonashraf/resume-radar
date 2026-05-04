@@ -14,7 +14,7 @@ Full plan: `tasks/plan.md`
 | 6 | 4.6: EditorToolbar + RewriteManager | ✅ | 4.1, 4.2 |
 | 7 | 4.7: LivePreview | ✅ | 4.1, 4.2 |
 | 8 | 4.8: ResumeEditorPanel (split-pane container) | ✅ | 4.3–4.7 |
-| 9 | 4.9: Dashboard integration | ⬜ | 4.8 |
+| 9 | 4.9: Dashboard integration | ✅ | 4.8 |
 | 10 | 4.10: Integration verification | ⬜ | 4.9 |
 
 ## Parallel Groups
