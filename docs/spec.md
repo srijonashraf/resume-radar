@@ -442,8 +442,6 @@ client/src/**/*.test.ts       — Utility tests alongside source
 - [ ] Security review: no retained PDFs beyond session, input sanitization
 - [ ] Landing page with positioning and pricing
 
-Old /analyze route has to remove
-
 ## Key Architectural Decisions
 
 ### 1. Three-Layer Editor State

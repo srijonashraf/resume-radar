@@ -48,10 +48,6 @@ import type { AnalysisResultV2, Rewrite } from "@resumetra/shared";
 
 export type SSEAnalysisCompletePayload = AnalysisResultV2;
 
-export interface SSEAnalysisError {
-  error: string;
-}
-
 // ==================== Tailoring SSE Payloads ====================
 
 export interface SSETailoringStart {

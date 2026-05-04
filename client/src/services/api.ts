@@ -19,9 +19,6 @@ import type {
 
 import type {
   ExtractionResult,
-  JobMatchResult,
-  CareerMapResult,
-  TailorResult,
 } from "../store/useStore";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -248,35 +245,6 @@ export const analyzeResumeStream = async (
   }
 
   return completeResult;
-};
-
-// ==================== Job / Career / Tailor (503 until Phase 3) ====================
-
-export const compareWithJobDescription = async (
-  analysisId: string,
-  jobDescription: string,
-): Promise<JobMatchResult> => {
-  const response = await api.post("/job-match", { analysisId, jobDescription });
-  return response.data.data;
-};
-
-export const generateCareerMap = async (
-  analysisId: string,
-): Promise<{ data: CareerMapResult; cached: boolean }> => {
-  const response = await api.post("/career-map", { analysisId });
-  return {
-    data: response.data.data,
-    cached: !!response.data.metadata?.cached,
-  };
-};
-
-export const tailorResume = async (
-  analysisId: string,
-  resumeText: string,
-  jobDescription: string,
-): Promise<TailorResult> => {
-  const response = await api.post("/tailor", { analysisId, resumeText, jobDescription });
-  return response.data.data;
 };
 
 // ==================== Tailoring — SSE Streaming ====================

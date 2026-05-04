@@ -56,16 +56,6 @@ export class NotFoundError extends AppError {
   }
 }
 
-/** 429 — Rate limit exceeded. */
-export class RateLimitError extends AppError {
-  constructor(
-    message: string,
-    options?: { details?: unknown; trusted?: boolean },
-  ) {
-    super(message, 429, { ...options, trusted: options?.trusted ?? true });
-  }
-}
-
 /** 500 — Unexpected database failure. */
 export class DatabaseError extends AppError {
   constructor(
