@@ -82,9 +82,9 @@ describe("OnboardingOverlay", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  // -- "Don't show again" --
+  // -- Finish persistence --
 
-  it('"Don\'t show again" checkbox sets localStorage flag on final step', async () => {
+  it("Get Started sets localStorage flag (always persists)", async () => {
     const user = userEvent.setup();
     render(<OnboardingOverlay />);
 
@@ -93,11 +93,6 @@ describe("OnboardingOverlay", () => {
     await user.click(screen.getByRole("button", { name: /next/i }));
     await user.click(screen.getByRole("button", { name: /next/i }));
     expect(screen.getByText("Edit & Export")).toBeInTheDocument();
-
-    // Check "Don't show again"
-    const checkbox = screen.getByRole("checkbox", { name: /don't show again/i });
-    await user.click(checkbox);
-    expect(checkbox).toBeChecked();
 
     // Click Get Started (final step finish button)
     await user.click(screen.getByRole("button", { name: /get started/i }));

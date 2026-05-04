@@ -40,18 +40,15 @@ const STEPS: StepData[] = [
 export default function OnboardingOverlay() {
   const [visible, setVisible] = useState(() => !localStorage.getItem(STORAGE_KEY));
   const [currentStep, setCurrentStep] = useState(0);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const dismiss = useCallback(() => {
     setVisible(false);
   }, []);
 
   const handleFinish = useCallback(() => {
-    if (dontShowAgain) {
-      localStorage.setItem(STORAGE_KEY, "true");
-    }
+    localStorage.setItem(STORAGE_KEY, "true");
     dismiss();
-  }, [dontShowAgain, dismiss]);
+  }, [dismiss]);
 
   const handleNext = useCallback(() => {
     if (currentStep < STEPS.length - 1) {
@@ -140,18 +137,6 @@ export default function OnboardingOverlay() {
           </div>
 
           <div className="flex items-center gap-4">
-            {isLastStep && (
-              <label className="flex items-center gap-2 text-sm text-stone-500 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={dontShowAgain}
-                  onChange={(e) => setDontShowAgain(e.target.checked)}
-                  className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                Don&apos;t show again
-              </label>
-            )}
-
             {isLastStep ? (
               <Button variant="primary" size="sm" onClick={handleFinish}>
                 Get Started

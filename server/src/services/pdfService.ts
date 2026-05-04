@@ -1,7 +1,11 @@
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api.d.js";
 
-GlobalWorkerOptions.workerSrc = "";
+const require = createRequire(import.meta.url);
+const workerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 
 export interface PdfExtractionResult {
   text: string;
