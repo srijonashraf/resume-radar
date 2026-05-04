@@ -15,20 +15,20 @@ Full plan: `tasks/plan.md`
 | 7 | 6.3: Resume history (v2 rebuild) | ✅ | — |
 | 8 | 6.4: Free tier paywall | ✅ | 6.3 |
 | 9 | 6.5: Security review + cleanup | ✅ | — |
-| 10 | 6.6: Legacy code removal | ⬜ | 6.3, 5.4 |
-| 11 | 6.7: Final verification + launch readiness | ⬜ | All |
+| 10 | 6.6: Legacy code removal | ✅ | 6.3, 5.4 |
+| 11 | 6.7: Final verification + launch readiness | ✅ | All |
 
 ## Parallel Groups
 
 - **Group A** (start immediately): ~~5.1~~, ~~5.2~~, ~~5.3~~, ~~5.4~~, ~~6.1~~, ~~6.2~~, ~~6.3~~, ~~6.5~~
 - **Group B** (after 5.2): ~~5.3~~
 - **Group C** (after 6.3): ~~6.4~~
-- **Group D** (after 6.3 + 5.4): 6.6 ← **unblocked**
-- **Group E** (after all): 6.7
+- **Group D** (after 6.3 + 5.4): ~~6.6~~
+- **Group E** (after all): ~~6.7~~
 
 ## Critical Path
 
-6.3 ✅ → 6.4 ✅ → 6.6 ← **next** → 6.7
+6.3 ✅ → 6.4 ✅ → 6.6 ✅ → 6.7 ✅
 
 ## Key Decisions
 
@@ -44,11 +44,18 @@ Full plan: `tasks/plan.md`
 - All areas PASS: input sanitization, rate limiting, PDF retention, JWT, CORS, SQL injection, XSS, secrets
 - 1 WARNING: No CSP headers configured — add Content-Security-Policy middleware
 
-## Verification Gate (after 6.7)
+## Verification Gate (6.7)
 
-- [ ] `tsc --noEmit` passes all 3 packages
-- [ ] `vitest run` passes server + client
-- [ ] Coverage: deterministic metrics 90%+, ATS scoring 90%+
+### Automated (all passing)
+- [x] `tsc --noEmit` passes all 3 packages (shared, server, client)
+- [x] `tsc -b` (build mode) passes client — zero errors
+- [x] `vitest run` passes server — 224/224 tests
+- [x] `vitest run` passes client — 317/317 tests
+- [x] Server build (`tsup`) succeeds
+- [x] Client build (`vite build`) succeeds
+- [x] ESLint — 0 errors (3 warnings: unnecessary deps, unused directive)
+
+### Manual (requires dev server + browser)
 - [ ] Manual: upload → extract → analyze → tailor → editor → PDF
 - [ ] Manual: BuildMode works for thin resume
 - [ ] Manual: onboarding on fresh visit
