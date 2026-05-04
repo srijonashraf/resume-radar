@@ -1,4 +1,4 @@
-# Phase 3: Honest Tailoring — Task Checklist
+# Phase 4: Live Editor — Task Checklist
 
 Full plan: `tasks/plan.md`
 
@@ -6,41 +6,48 @@ Full plan: `tasks/plan.md`
 
 | # | Task | Status | Depends on |
 |---|------|--------|------------|
-| 1 | 3.1: Tailor agent tools + prompt | ✅ | — |
-| 2 | 3.3: Rewrite persistence | ✅ | — |
-| 3 | 3.2: Stage 4 tailor agent | ✅ | 3.1 |
-| 4 | 3.5: Client API + SSE types | ✅ | — |
-| 5 | 3.4: Tailor pipeline + route | ✅ | 3.2, 3.3 |
-| 6 | 3.6: Store extensions | ✅ | 3.5 |
-| 7 | 3.7: Tailor results UI | ✅ | 3.6 |
-| 8 | 3.8: Integration verification | ✅ | 3.4, 3.7 |
+| 1 | 4.1: Three-layer editor store | ✅ | — |
+| 2 | 4.2: Resolved document → PdfResumeData mapper | ⬜ | 4.1 |
+| 3 | 4.3: Section editors — Experience + Text | ⬜ | 4.1 |
+| 4 | 4.4: Section editors — Skills + Education + Custom | ⬜ | 4.1 |
+| 5 | 4.5: EditorSidebar | ⬜ | 4.1 |
+| 6 | 4.6: EditorToolbar + RewriteManager | ⬜ | 4.1, 4.2 |
+| 7 | 4.7: LivePreview | ⬜ | 4.1, 4.2 |
+| 8 | 4.8: ResumeEditorPanel (split-pane container) | ⬜ | 4.3–4.7 |
+| 9 | 4.9: Dashboard integration | ⬜ | 4.8 |
+| 10 | 4.10: Integration verification | ⬜ | 4.9 |
 
 ## Parallel Groups
 
-- **Group A** (start immediately): 3.1 + 3.3 + 3.5 in parallel
-- **Group B** (after 3.1): 3.2
-- **Group C** (after 3.2 + 3.3): 3.4
-- **Group D** (after 3.5): 3.6 → 3.7
-- **Group E** (after 3.4 + 3.7): 3.8
+- **Group A** (start immediately): 4.1
+- **Group B** (after 4.1): 4.2 + 4.3 + 4.4 + 4.5 in parallel
+- **Group C** (after 4.2): 4.6 + 4.7 in parallel
+- **Group D** (after all): 4.8
+- **Group E** (after 4.8): 4.9
+- **Group F** (after 4.9): 4.10
 
 ## Critical Path
 
-3.1 → 3.2 → 3.4 → 3.8
+4.1 → 4.2 → 4.6/4.7 → 4.8 → 4.9 → 4.10
 
 ## Key Decisions
 
-- Classification + rewrite in single tool call (not two-pass)
-- Only process flagged bullets (medium+ severity) + JD-related items
-- MISSING learning paths: KB lookup first, AI fallback
-- Fabrication prevention: prompt guardrails + post-processing validation
-- SSE events: `tailoring_start`, `tailoring_section`, `tailoring_rewrite`, `tailoring_complete`
+- Full rewrite of `useResumeEditorStore.ts` around `ResumeDocument` (not TipTap HTML)
+- Edit key: `${sectionId}.${itemId}.${field}` — flat, parseable
+- Template selection merged into editor store (not separate store)
+- Reuse existing `ProfessionalTemplatePreview` / `ModernTemplatePreview` for live preview
+- New `resolvedDocumentToPdfData()` replaces old HTML-parsing `editorToPdfData()`
+- Up/down arrows for reorder (no drag-and-drop in Phase 4)
+- Delete TipTap dependency after Phase 4
 
 ## Verification Gate
 
-After 3.8:
-- [x] `tsc --noEmit` passes all 3 packages
-- [x] `vitest run` passes server + client
-- [ ] Manual: upload → extract → analyze → tailor → rewrites display
+After 4.10:
+- [ ] `tsc --noEmit` passes all 3 packages
+- [ ] `vitest run` passes server + client
+- [ ] Manual: upload → extract → analyze → tailor → open editor → live preview
 - [ ] Manual: accept/reject persists across page refresh
-- [ ] Manual: MISSING rewrites show learning path cards
-- [ ] Manual: no fabricated skills in REWRITTEN classification
+- [ ] Manual: template switch preserves edits
+- [ ] Manual: PDF download matches preview
+- [ ] Manual: section reorder reflects in preview
+- [ ] Manual: add/remove bullets and entries works
