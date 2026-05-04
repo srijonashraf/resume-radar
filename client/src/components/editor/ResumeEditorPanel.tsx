@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import type { DynamicSection } from "@resumetra/shared";
 import { useStore } from "../../store/useStore";
 import { useResumeEditorStore } from "../../store/useResumeEditorStore";
 import EditorToolbar from "./EditorToolbar";
@@ -10,11 +11,7 @@ import { SkillsEditor } from "./sections/SkillsEditor";
 import { EducationEditor } from "./sections/EducationEditor";
 import { CustomSectionEditor } from "./sections/CustomSectionEditor";
 
-function SectionEditorRouter({
-  section,
-}: {
-  section: { id: string; type: string };
-}) {
+function SectionEditorRouter({ section }: { section: DynamicSection }) {
   switch (section.type) {
     case "experience":
       return <ExperienceEditor section={section} />;
