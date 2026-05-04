@@ -1,3 +1,5 @@
+import "@testing-library/jest-dom/vitest";
+
 // Vitest global setup
 // VITE_* env vars must be set on process.env for the Vite import-analysis plugin
 // to inject them into import.meta.env at transform time.
