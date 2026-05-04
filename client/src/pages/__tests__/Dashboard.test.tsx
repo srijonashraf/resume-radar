@@ -3,8 +3,8 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import Dashboard from "../Dashboard";
 import { useStore } from "../../store/useStore";
 import { useResumeEditorStore } from "../../store/useResumeEditorStore";
-import type { ExtractionResult, AnalysisResultV2, Rewrite } from "@resumetra/shared";
-import type { ResumeDocument } from "@resumetra/shared";
+import type { AnalysisResultV2, Rewrite, ResumeDocument } from "@resumetra/shared";
+import type { ExtractionResult } from "../../store/useStore";
 
 // ── Mock child components ────────────────────────────────────────────
 
