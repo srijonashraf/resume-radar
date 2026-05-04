@@ -1,8 +1,8 @@
 import { render, screen, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useStore } from "../../../store/useStore";
+import { useStore, type ExtractionResult } from "../../../store/useStore";
 import { useResumeEditorStore } from "../../../store/useResumeEditorStore";
-import type { ExtractionResult, Rewrite } from "@resumetra/shared";
+import type { Rewrite } from "@resumetra/shared";
 
 // ── Mock child components ──────────────────────────────────────────────
 

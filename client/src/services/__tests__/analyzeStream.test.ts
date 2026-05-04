@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { analyzeResumeStream } from "../../services/api";
 import type {
-  SSEComputingMetrics,
   SSEMetricsCompletePayload,
-  SSEAnalyzingProgress,
 } from "../../types";
 
 // Mock localStorage

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "../../store/useStore";
+import { useAuth } from "../../hooks/useAuth";
 import { DocumentArrowUpIcon } from "@heroicons/react/24/outline";
 import Spinner from "../ui/Spinner";
 
@@ -9,7 +10,8 @@ const PdfUploader = () => {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resumeData = useStore((state) => state.resumeData);
-  const isGuest = useStore((state) => state.isGuest);
+  const { user } = useAuth();
+  const isGuest = !user;
   const setResumeData = useStore((state) => state.setResumeData);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

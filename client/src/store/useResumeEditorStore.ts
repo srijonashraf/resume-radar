@@ -20,6 +20,9 @@ interface ResumeEditorState {
   sectionOrder: string[];
   selectedTemplate: TemplateId;
   activeSectionId: string | null;
+  // BuildMode state
+  isThinResume: boolean;
+  buildModeActive: boolean;
 
   // Actions
   initialize: (document: ResumeDocument, rewrites?: Rewrite[]) => void;
@@ -37,6 +40,7 @@ interface ResumeEditorState {
   removeEntry: (sectionId: string, itemId: string) => void;
   setActiveSection: (sectionId: string | null) => void;
   setTemplate: (templateId: TemplateId) => void;
+  toggleBuildMode: () => void;
   getResolvedDocument: () => ResumeDocument | null;
   resetEditor: () => void;
 }
@@ -50,10 +54,25 @@ const INITIAL_STATE = {
   sectionOrder: [] as string[],
   selectedTemplate: "professional" as TemplateId,
   activeSectionId: null as string | null,
+  isThinResume: false,
+  buildModeActive: false,
 };
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+function checkThinResume(doc: ResumeDocument): boolean {
+  // Thin = any experience section has < 3 bullets per entry, or total sections with content < 3
+  const sectionsWithContent = doc.sections.filter((s) => s.items.length > 0);
+  if (sectionsWithContent.length < 3) return true;
+
+  const hasThinExperience = doc.sections.some(
+    (s) =>
+      s.type === "experience" &&
+      s.items.some((item) => (item.bullets?.length ?? 0) < 3),
+  );
+  return hasThinExperience;
 }
 
 /** Build a mutable copy of the source document, applying rewrites and user edits. */
@@ -114,13 +133,13 @@ function applyFields(
     const key = `${sectionId}.${item.id}.${field}`;
     const userValue = userEdits.get(key);
     if (userValue !== undefined) {
-      (item as Record<string, unknown>)[field] = userValue;
+      (item as unknown as Record<string, unknown>)[field] = userValue;
       continue;
     }
 
     const rw = acceptedRewrites.get(key);
     if (rw) {
-      (item as Record<string, unknown>)[field] = rw.after;
+      (item as unknown as Record<string, unknown>)[field] = rw.after;
     }
   }
 
@@ -181,6 +200,8 @@ const useResumeEditorStore = create<ResumeEditorState>()((set, get) => ({
       userEdits: new Map(),
       sectionOrder,
       activeSectionId: sectionOrder.length > 0 ? sectionOrder[0] : null,
+      isThinResume: checkThinResume(document),
+      buildModeActive: false,
     });
   },
 
@@ -347,6 +368,9 @@ const useResumeEditorStore = create<ResumeEditorState>()((set, get) => ({
     set({ activeSectionId: sectionId }),
 
   setTemplate: (templateId: TemplateId) => set({ selectedTemplate: templateId }),
+
+  toggleBuildMode: () =>
+    set((state) => ({ buildModeActive: !state.buildModeActive })),
 
   getResolvedDocument: () => {
     const { sourceDocument, rewrites, userEdits, sectionOrder } = get();

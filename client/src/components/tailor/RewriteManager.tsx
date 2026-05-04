@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Button from "../ui/Button";
-import ClassificationBadge from "./ClassificationBadge";
 import RewriteCard from "./RewriteCard";
 import type { GapClassification, Rewrite } from "@resumetra/shared";
 

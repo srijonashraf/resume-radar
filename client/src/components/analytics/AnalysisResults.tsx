@@ -6,6 +6,7 @@ import Badge from "../ui/Badge";
 import SectionScoreCard from "./SectionScoreCard";
 import AtsKeywordReport from "./AtsKeywordReport";
 import AnalysisRadarChart from "./AnalysisRadarChart";
+import PaywallGate from "../paywall/PaywallGate";
 
 interface AnalysisResultsProps {
   result: AnalysisResultV2;
@@ -132,32 +133,69 @@ export default function AnalysisResults({
 
       {/* All Issues (consolidated) */}
       {allIssues.length > 0 && (
-        <Card padding="lg">
-          <h3 className="text-lg font-bold text-stone-900 mb-4">
-            All Issues ({allIssues.length})
-          </h3>
-          <div className="space-y-3">
-            {allIssues.map((issue, i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-stone-100 p-3 text-sm"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={severityVariant[issue.severity]}>
-                    {issue.severity}
-                  </Badge>
-                  <span className="font-medium text-stone-700">
-                    {issue.type}
-                  </span>
-                </div>
-                <p className="text-stone-600">{issue.description}</p>
-                <p className="text-amber-700 mt-1 text-xs">
-                  {issue.suggestion}
+        <PaywallGate
+          feature="full_issues"
+          fallback={
+            <Card padding="lg">
+              <h3 className="text-lg font-bold text-stone-900 mb-4">
+                All Issues ({allIssues.length})
+              </h3>
+              <div className="space-y-3">
+                {allIssues.slice(0, 3).map((issue, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-stone-100 p-3 text-sm"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={severityVariant[issue.severity]}>
+                        {issue.severity}
+                      </Badge>
+                      <span className="font-medium text-stone-700">
+                        {issue.type}
+                      </span>
+                    </div>
+                    <p className="text-stone-600">{issue.description}</p>
+                    <p className="text-amber-700 mt-1 text-xs">
+                      {issue.suggestion}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-sm text-stone-500">
+                  Upgrade to see all {allIssues.length} issues
                 </p>
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          }
+        >
+          <Card padding="lg">
+            <h3 className="text-lg font-bold text-stone-900 mb-4">
+              All Issues ({allIssues.length})
+            </h3>
+            <div className="space-y-3">
+              {allIssues.map((issue, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-stone-100 p-3 text-sm"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant={severityVariant[issue.severity]}>
+                      {issue.severity}
+                    </Badge>
+                    <span className="font-medium text-stone-700">
+                      {issue.type}
+                    </span>
+                  </div>
+                  <p className="text-stone-600">{issue.description}</p>
+                  <p className="text-amber-700 mt-1 text-xs">
+                    {issue.suggestion}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </PaywallGate>
       )}
     </motion.div>
   );

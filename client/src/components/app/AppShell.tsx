@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../layout/Logo";
 import { Button } from "../ui";
+import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { useAuth } from "../../hooks/useAuth";
+import OnboardingOverlay from "../onboarding/OnboardingOverlay";
 
 const AppShell = ({ children }: { children?: React.ReactNode }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -16,6 +18,7 @@ const AppShell = ({ children }: { children?: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-stone-50 font-sans selection:bg-amber-500/30">
+      <OnboardingOverlay />
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-stone-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
@@ -103,7 +106,9 @@ const AppShell = ({ children }: { children?: React.ReactNode }) => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </main>
     </div>
   );

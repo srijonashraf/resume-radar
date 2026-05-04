@@ -1,23 +1,26 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import Card from "../ui/Card";
 import { Tabs } from "../ui";
 import {
   DocumentArrowUpIcon,
   InformationCircleIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { useStore } from "../../store/useStore";
+import { useAuth } from "../../hooks/useAuth";
 import Button from "../ui/Button";
+import AnalysisHistory from "./AnalysisHistory";
 
 const DashboardTabs = () => {
-  const [activeTab, setActiveTab] = useState("placeholder");
+  const [activeTab, setActiveTab] = useState("history");
   const resumeData = useStore((state) => state.resumeData);
   const clearCurrentAnalysis = useStore(
     (state) => state.clearCurrentAnalysis
   );
   const activeEditorTab = useStore((state) => state.activeEditorTab);
   const setActiveEditorTab = useStore((state) => state.setActiveEditorTab);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (activeEditorTab) {
@@ -32,26 +35,43 @@ const DashboardTabs = () => {
 
   const tabs = [
     {
-      id: "placeholder",
-      name: "Analysis",
-      icon: DocumentArrowUpIcon,
+      id: "history",
+      name: "History",
+      icon: ClockIcon,
       disabled: false,
     },
   ];
 
   const renderTabContent = () => {
-    return (
-      <Card padding="lg" className="text-center">
-        <DocumentArrowUpIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
-        <h3 className="text-xl font-medium text-stone-600 mb-2">
-          Analysis Features Coming Soon
-        </h3>
-        <p className="text-stone-400">
-          Job analysis, career map, resume editor, analytics, and history will
-          be re-enabled as each Phase 2 stage completes.
-        </p>
-      </Card>
-    );
+    switch (activeTab) {
+      case "history":
+        return user ? (
+          <AnalysisHistory />
+        ) : (
+          <Card padding="lg" className="text-center">
+            <ClockIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
+            <h3 className="text-xl font-medium text-stone-600 mb-2">
+              Sign in to Save History
+            </h3>
+            <p className="text-stone-400">
+              Your analysis history will be saved and accessible across sessions
+              when you sign in with Google.
+            </p>
+          </Card>
+        );
+      default:
+        return (
+          <Card padding="lg" className="text-center">
+            <DocumentArrowUpIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
+            <h3 className="text-xl font-medium text-stone-600 mb-2">
+              Coming Soon
+            </h3>
+            <p className="text-stone-400">
+              More features will be available soon.
+            </p>
+          </Card>
+        );
+    }
   };
 
   return (

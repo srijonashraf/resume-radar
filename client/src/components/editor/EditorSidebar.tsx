@@ -3,14 +3,18 @@ import { ChevronUpIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { useResumeEditorStore } from "../../store/useResumeEditorStore";
 import Button from "../ui/Button";
 import { cn } from "../../utils/cn";
+import BuildMode from "./BuildMode";
 
 export default function EditorSidebar() {
   const sourceDocument = useResumeEditorStore((s) => s.sourceDocument);
   const sectionOrder = useResumeEditorStore((s) => s.sectionOrder);
   const activeSectionId = useResumeEditorStore((s) => s.activeSectionId);
   const rewrites = useResumeEditorStore((s) => s.rewrites);
+  const isThinResume = useResumeEditorStore((s) => s.isThinResume);
+  const buildModeActive = useResumeEditorStore((s) => s.buildModeActive);
   const setActiveSection = useResumeEditorStore((s) => s.setActiveSection);
   const reorderSection = useResumeEditorStore((s) => s.reorderSection);
+  const toggleBuildMode = useResumeEditorStore((s) => s.toggleBuildMode);
 
   const pendingCountBySection = useMemo(() => {
     const counts = new Map<string, number>();
@@ -31,6 +35,25 @@ export default function EditorSidebar() {
       aria-label="Resume sections"
       className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-stone-200 bg-white p-3"
     >
+      {/* Build Mode banner for thin resumes */}
+      {isThinResume && !buildModeActive && (
+        <button
+          type="button"
+          data-testid="build-mode-banner"
+          className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+          onClick={toggleBuildMode}
+        >
+          Build Mode — your resume looks thin. Get guided suggestions.
+        </button>
+      )}
+
+      {/* Build Mode panel (shown above section list when active) */}
+      {buildModeActive && (
+        <div className="mb-2">
+          <BuildMode />
+        </div>
+      )}
+
       {sectionOrder.map((sectionId, index) => {
         const section = sectionById.get(sectionId);
         if (!section) return null;

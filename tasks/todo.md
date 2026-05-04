@@ -1,4 +1,4 @@
-# Phase 4: Live Editor — Task Checklist
+# Phase 5 + 6: PDF Verification & Launch Polish — Task Checklist
 
 Full plan: `tasks/plan.md`
 
@@ -6,48 +6,53 @@ Full plan: `tasks/plan.md`
 
 | # | Task | Status | Depends on |
 |---|------|--------|------------|
-| 1 | 4.1: Three-layer editor store | ✅ | — |
-| 2 | 4.2: Resolved document → PdfResumeData mapper | ✅ | 4.1 |
-| 3 | 4.3: Section editors — Experience + Text | ✅ | 4.1 |
-| 4 | 4.4: Section editors — Skills + Education + Custom | ✅ | 4.1 |
-| 5 | 4.5: EditorSidebar | ✅ | 4.1 |
-| 6 | 4.6: EditorToolbar + RewriteManager | ✅ | 4.1, 4.2 |
-| 7 | 4.7: LivePreview | ✅ | 4.1, 4.2 |
-| 8 | 4.8: ResumeEditorPanel (split-pane container) | ✅ | 4.3–4.7 |
-| 9 | 4.9: Dashboard integration | ✅ | 4.8 |
-| 10 | 4.10: Integration verification | ✅ | 4.9 |
+| 1 | 5.1: BuildMode — guided content builder for thin resumes | ✅ | — |
+| 2 | 5.2: PDF WYSIWYG verification | ✅ | — |
+| 3 | 5.3: PDF ATS compatibility check | ✅ | 5.2 |
+| 4 | 5.4: Integration test suite | ✅ | — |
+| 5 | 6.1: Onboarding flow | ✅ | — |
+| 6 | 6.2: Empty states + error boundaries | ✅ | — |
+| 7 | 6.3: Resume history (v2 rebuild) | ✅ | — |
+| 8 | 6.4: Free tier paywall | ✅ | 6.3 |
+| 9 | 6.5: Security review + cleanup | ✅ | — |
+| 10 | 6.6: Legacy code removal | ⬜ | 6.3, 5.4 |
+| 11 | 6.7: Final verification + launch readiness | ⬜ | All |
 
 ## Parallel Groups
 
-- **Group A** (start immediately): 4.1
-- **Group B** (after 4.1): 4.2 + 4.3 + 4.4 + 4.5 in parallel
-- **Group C** (after 4.2): 4.6 + 4.7 in parallel
-- **Group D** (after all): 4.8
-- **Group E** (after 4.8): 4.9
-- **Group F** (after 4.9): 4.10
+- **Group A** (start immediately): ~~5.1~~, ~~5.2~~, ~~5.3~~, ~~5.4~~, ~~6.1~~, ~~6.2~~, ~~6.3~~, ~~6.5~~
+- **Group B** (after 5.2): ~~5.3~~
+- **Group C** (after 6.3): ~~6.4~~
+- **Group D** (after 6.3 + 5.4): 6.6 ← **unblocked**
+- **Group E** (after all): 6.7
 
 ## Critical Path
 
-4.1 → 4.2 → 4.6/4.7 → 4.8 → 4.9 → 4.10
+6.3 ✅ → 6.4 ✅ → 6.6 ← **next** → 6.7
 
 ## Key Decisions
 
-- Full rewrite of `useResumeEditorStore.ts` around `ResumeDocument` (not TipTap HTML)
-- Edit key: `${sectionId}.${itemId}.${field}` — flat, parseable
-- Template selection merged into editor store (not separate store)
-- Reuse existing `ProfessionalTemplatePreview` / `ModernTemplatePreview` for live preview
-- New `resolvedDocumentToPdfData()` replaces old HTML-parsing `editorToPdfData()`
-- Up/down arrows for reorder (no drag-and-drop in Phase 4)
-- Delete TipTap dependency after Phase 4
+- Keep current separate-file template approach (no config-driven refactor)
+- BuildMode: suggest content areas + bullet templates, no AI generation
+- History rebuild against v2 tables, re-enable endpoints
+- Paywall gates: PDF download, accept rewrites, full issue list, editor edit access
+- Legacy v1 code removed after v2 integration tests pass
+- Job-match + career-map endpoints stay 503 (rebuild post-launch)
 
-## Verification Gate
+## Security Audit Findings (6.5)
 
-After 4.10:
+- All areas PASS: input sanitization, rate limiting, PDF retention, JWT, CORS, SQL injection, XSS, secrets
+- 1 WARNING: No CSP headers configured — add Content-Security-Policy middleware
+
+## Verification Gate (after 6.7)
+
 - [ ] `tsc --noEmit` passes all 3 packages
 - [ ] `vitest run` passes server + client
-- [ ] Manual: upload → extract → analyze → tailor → open editor → live preview
-- [ ] Manual: accept/reject persists across page refresh
-- [ ] Manual: template switch preserves edits
-- [ ] Manual: PDF download matches preview
-- [ ] Manual: section reorder reflects in preview
-- [ ] Manual: add/remove bullets and entries works
+- [ ] Coverage: deterministic metrics 90%+, ATS scoring 90%+
+- [ ] Manual: upload → extract → analyze → tailor → editor → PDF
+- [ ] Manual: BuildMode works for thin resume
+- [ ] Manual: onboarding on fresh visit
+- [ ] Manual: history loads past analyses
+- [ ] Manual: paywall gates free users
+- [ ] Manual: mobile-responsive
+- [ ] Lighthouse: performance > 80, accessibility > 90

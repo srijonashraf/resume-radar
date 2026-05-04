@@ -326,7 +326,7 @@ describe("TailorResults", () => {
     render(
       <TailorResults
         tailorPhase="tailoring"
-        tailorProgress={{ sectionId: "section-0", sectionTitle: "Experience", index: 0, total: 3 }}
+        tailorProgress={{ sectionId: "section-0", sectionTitle: "Experience" }}
         rewrites={[]}
         stats={null}
         sectionTitles={sectionTitles}

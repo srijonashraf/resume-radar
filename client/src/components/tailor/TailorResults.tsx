@@ -2,15 +2,14 @@ import { motion } from "framer-motion";
 import Card from "../ui/Card";
 import { Spinner } from "../ui";
 import RewriteManager from "./RewriteManager";
-import type { TailorPhase, Rewrite } from "@resumetra/shared";
+import type { TailorPhase } from "../../store/useStore";
+import type { Rewrite } from "@resumetra/shared";
 
 interface TailorResultsProps {
   tailorPhase: TailorPhase;
   tailorProgress: {
     sectionId: string;
     sectionTitle: string;
-    index: number;
-    total: number;
   } | null;
   rewrites: Rewrite[];
   stats: {
@@ -49,8 +48,7 @@ export default function TailorResults({
         </h2>
         {tailorProgress && (
           <p className="text-stone-500 text-lg">
-            Processing: {tailorProgress.sectionTitle} (
-            {tailorProgress.index + 1}/{tailorProgress.total})
+            Processing: {tailorProgress.sectionTitle}
           </p>
         )}
       </Card>

@@ -25,6 +25,20 @@ vi.mock("../../../utils/resolvedDocumentToPdfData", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: { id: "1", email: "test@test.com", name: "Test", picture: null },
+    token: "tok",
+    isLoggedIn: true,
+    isLoading: false,
+  }),
+}));
+
+vi.mock("../../../store/useStore", () => ({
+  useStore: (selector: (state: { usage: { used: number; limit: number; remaining: number } }) => unknown) =>
+    selector({ usage: { used: 2, limit: 10, remaining: 8 } }),
+}));
+
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
 const MOCK_DOCUMENT: ResumeDocument = {

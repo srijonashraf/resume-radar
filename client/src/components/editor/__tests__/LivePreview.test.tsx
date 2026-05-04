@@ -13,8 +13,8 @@ vi.mock(
     }: {
       data: Record<string, unknown>;
     }) => (
-      <div data-testid="professional-template" data-name={data.name}>
-        Professional:{data.name}
+      <div data-testid="professional-template" data-name={String(data.name)}>
+        Professional:{String(data.name)}
       </div>
     ),
   }),
@@ -28,8 +28,8 @@ vi.mock(
     }: {
       data: Record<string, unknown>;
     }) => (
-      <div data-testid="modern-template" data-name={data.name}>
-        Modern:{data.name}
+      <div data-testid="modern-template" data-name={String(data.name)}>
+        Modern:{String(data.name)}
       </div>
     ),
   }),
@@ -167,7 +167,7 @@ describe("LivePreview", () => {
     // Reorder: skills comes first, then summary, then experience
     useResumeEditorStore.getState().reorderSection(SECTION_SKL, 0);
 
-    const { container } = render(<LivePreview />);
+    render(<LivePreview />);
 
     // The template receives sectionOrder in its data.sectionOrder prop.
     // We can verify via the rendered template mock's data attribute.

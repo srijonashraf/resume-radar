@@ -1,248 +1,322 @@
-# Phase 3: Honest Tailoring — Implementation Plan
+# Phase 5 + 6: PDF Export Verification & Launch Polish — Implementation Plan
 
 ## Context
 
-Phases 0-2 complete. Upload → extract → analyze → results pipeline works end-to-end with 192 tests. Phase 3 adds the core product differentiator: per-bullet AI rewrites with honest gap classification. No fabricated skills.
+Phases 0-4 complete. Upload → extract → analyze → tailor → live editor pipeline works end-to-end. PDF export works with two templates (Professional + Modern). Three-layer editor store, all section editors, live preview, rewrite accept/reject all functional.
 
-**Spec**: `docs/spec.md` lines 398-408 (Phase 3 success criteria), lines 449-475 (architecture).
+**Remaining work**:
+- Phase 4 gap: BuildMode for thin resumes
+- Phase 5: PDF WYSIWYG verification, ATS compatibility, integration tests
+- Phase 6: Onboarding, error states, history rebuild, paywall, security, legacy cleanup, launch
 
-**Pipeline stage 4**: `ResumeDocument + AtsReport + Issues → Rewrite[]`
+**Spec**: `docs/spec.md` lines 409-443 (Phase 4-6 success criteria), lines 449-463 (three-layer architecture), lines 511 (free tier paywall decision).
 
 ---
 
-## Design Decisions
+## Key Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Classification timing | Single tool call (classify + rewrite together) | Two-pass would double token cost. Classification context must inform the rewrite. |
-| Skill fabrication prevention | Prompt guardrails + post-processing validation | Prompt rules forbid fabrication. Post-processing cross-references `keywordsAdded` against `missingKeywords`. REWRITTEN + missing keyword → downgrade to REFRAMED. |
-| Which bullets to process | Only flagged items (medium+ severity) + JD-related items | Processing all bullets wastes tokens on content that doesn't need improvement. |
-| MISSING learning paths | KB lookup first, AI fallback | KB has `learningResources` per skill. If no match, AI generates inline. |
-| SSE events | `tailoring_start`, `tailoring_section`, `tailoring_rewrite`, `tailoring_complete` | Matches existing SSE pattern. Per-rewrite events enable progressive UI. |
-
----
-
-## Existing Infrastructure (reuse)
-
-| What | Where | Notes |
-|------|-------|-------|
-| `Rewrite` type + Zod schema | `shared/src/types/rewrite.ts`, `shared/src/schemas/rewrite.ts` | Already defined with tests |
-| `resume_tailor_rewrites` table | Migration `20260426000003_add_pipeline_v2_tables.js` | Schema matches types |
-| `callTool()` pattern | `server/src/services/aiService.ts` | Dual-schema tools, Zod validation |
-| Agent iteration pattern | `server/src/stages/stage3_analysis.ts` | Per-section loop, SSE progress, graceful errors |
-| Persistence pattern | `server/src/db/sections.ts` | Transactions, sectionIdMap for UUID resolution |
-| KB learning resources | `server/src/knowledge/types.ts` `LearningPath` | `courses`, `projects`, `timeline`, `resumeBulletExample` |
-| JD keyword extraction | `server/src/stages/analysisAgentTools.ts` `extractJdKeywordsTool` | Reuse for tailor pipeline |
-| ATS keyword matching | `server/src/stages/atsScoring.ts` `computeKeywordMatchScore` | Reuse for tailor pipeline |
-| SSE client pattern | `client/src/services/api.ts` `analyzeResumeStream()` | Same fetch + ReadableStream pattern |
-| UI primitives | `client/src/components/ui/` | `Badge`, `Card`, `Button`, `AccordionItem`, `Spinner` |
+| Template architecture | Keep current separate-file approach | Two templates work, config-driven refactor is speculative — no third template yet |
+| BuildMode scope | Suggest content areas + bullet templates, no AI generation | Keep deterministic for Phase 5, AI-assisted building is Phase 6+ |
+| History rebuild | Rebuild against v2 tables, re-enable endpoints | Legacy history uses v1 tables with wrong data model |
+| Paywall placement | Block: PDF download, accept rewrites, full issue list | Per spec: analysis free, editor features gated |
+| Legacy cleanup | Remove v1 routes, AI functions, keep v1 SQL files for migration reference | Migrations must stay idempotent, SQL files document schema |
 
 ---
 
 ## Tasks
 
-### 3.1: Tailor Agent Tools + Prompt
+### 5.1: BuildMode — Guided Content Builder for Thin Resumes
 
-**Files**: `server/src/stages/tailorTools.ts` (new), `server/src/stages/tailorPrompts.ts` (new)
+**Files**: `client/src/components/editor/BuildMode.tsx` (new), `client/src/components/editor/__tests__/BuildMode.test.tsx` (new)
 
-**What**: Define two AI tools following the dual-schema pattern (JSON Schema for AI + Zod for validation).
+**What**: When resume has thin content (few bullets, sparse sections), offer guided mode:
+- Detect thin resume: < 3 bullets per experience entry, or < 2 sections with content
+- Show "Build Mode" banner in EditorSidebar when detected
+- Per-section suggestions: common bullet templates for SWE roles (from knowledge base)
+- "Add suggested bullets" button per section — adds template bullets as user edits (Layer 3)
+- Content checklist: "Add metrics to X bullets", "Add Y missing skills", "Expand summary"
 
-**Tool 1: `classify_skills`** — Called once before rewriting. Classifies each JD skill:
-- Params: `{ classifications: Array<{ skill: string, classification: "HAS" | "ADJACENT" | "LACKS", evidence: string, adjacentSkill?: string }> }`
+**Store changes**: `useResumeEditorStore` — add `isThinResume: boolean` computed from sourceDocument, computed on `initialize()`.
 
-**Tool 2: `rewrite_bullet`** — Per-bullet rewrite with gap classification:
-- Params: `{ sectionId, itemId, field, before, after, rationale, keywordsAdded: string[], gapClassification: "REWRITTEN"|"REFRAMED"|"MISSING", learningPath?: { courses, projects, timeline, targetBullet } }`
-
-**System prompt rules**:
-1. NEVER fabricate skills
-2. Classify skills first via `classify_skills`
-3. REWRITTEN = user has skill, bullet just needs better framing with JD keywords
-4. REFRAMED = user lacks exact skill but has adjacent experience
-5. MISSING = user genuinely lacks skill → learning path, not fabricated bullet
-6. For MISSING, `after` is aspirational (what bullet COULD look like after learning)
-7. Only surface implicit skills user already demonstrates
-8. `keywordsAdded` must trace to existing resume experience
+**Depends on**: Nothing (editor store already supports addBullet/addEntry)
 
 **Acceptance**:
-- Both tools match `ToolDefinition` type
-- Zod schemas validate valid/invalid inputs
-- System prompt contains all 8 fabrication-prevention rules
-- `tsc --noEmit` passes
+- Thin resume detection triggers BuildMode banner
+- Section suggestions render per-section
+- "Add suggested bullets" adds bullets as user edits
+- Content checklist shows actionable items
+- Non-thin resumes hide BuildMode
+- Toggle between Build/Editor mode works
 
 ---
 
-### 3.2: Stage 4 Tailor Agent
+### 5.2: PDF WYSIWYG Verification
 
-**Files**: `server/src/stages/stage4_tailoring.ts` (new)
+**Files**: `client/src/components/pdf/__tests__/ResumePdfDocument.test.tsx` (new)
 
-**What**: `runTailorAgent(document, atsReport, analysisResult, jdText, kb, sendSSE) → Rewrite[]`
+**What**: Verify PDF output matches live preview:
+- Extract text from generated PDF (server-side pdfjs-dist or client-side)
+- Compare extracted text against resolved document content
+- Verify: all sections present, contact info correct, bullets preserved, section order matches
+- Visual spot-check: Professional + Modern templates render without layout breaks
+- Font verification: Outfit headings, DM Sans body in PDF
 
-**Algorithm**:
-1. Build context from sections, ATS keywords, analysis issues (medium+ severity), KB learning resources
-2. Call `classify_skills` once → get skill classification map
-3. For each section with issues or JD keyword relevance:
-   - SSE: `tailoring_section`
-   - For each flagged item:
-     - Call `rewrite_bullet` with classification context
-     - Zod validate response
-     - Fabrication check: REWRITTEN + missing keyword → downgrade to REFRAMED
-     - Assign UUID, set `accepted: null`
-     - SSE: `tailoring_rewrite`
-4. Return all rewrites
+**Approach**: Write automated test that generates PDF from test data, extracts text, asserts content. Manual visual check for layout.
 
-**Pattern**: Same as `stage3_analysis.ts` — per-section loop, `callTool()` per item, graceful error handling.
-
-**Depends on**: 3.1
+**Depends on**: Nothing
 
 **Acceptance**:
-- Returns `Rewrite[]` with correct shape
-- SSE events emitted in order
-- Fabrication check runs and can downgrade
-- Failed single bullet doesn't crash pipeline
-- `tsc --noEmit` passes
+- Automated test: all sections present in PDF text extraction
+- Automated test: contact info matches resolved document
+- Automated test: bullet content matches
+- Automated test: section order matches `sectionOrder`
+- Manual: Professional template renders cleanly (no overflow, no missing sections)
+- Manual: Modern template renders cleanly (sidebar correct, body correct)
+- Manual: Fonts are correct in PDF (not fallback)
 
 ---
 
-### 3.3: Rewrite Persistence
+### 5.3: PDF ATS Compatibility Check
 
-**Files**: `server/src/db/rewrites.ts` (new)
+**Files**: `client/src/components/pdf/__tests__/atsCompatibility.test.ts` (new)
 
-**What**: Three functions following `sections.ts` pattern:
+**What**: Verify PDF output is ATS-parseable:
+- Generate PDF from test data with known keywords
+- Extract text from PDF programmatically
+- Run extracted text through server's ATS keyword matcher
+- Assert: all test keywords detected
+- Assert: no formatting artifacts in extracted text (no table markers, no weird spacing)
+- Verify: standard fonts used (no custom encoding)
 
-**`saveRewrites({ analysisId, rewrites })`**: Transaction, sectionIdMap for UUID resolution, DELETE + INSERT (upsert pattern)
-
-**`loadRewrites(analysisId)`**: Join `resume_tailor_rewrites` with `resume_sections` to reconstruct `sectionId`. Return `Rewrite[]`.
-
-**`updateRewriteAcceptance(rewriteId, accepted)`**: Simple UPDATE. Return updated row.
-
-**Depends on**: Nothing (DB table exists from Phase 0)
+**Depends on**: 5.2
 
 **Acceptance**:
-- Save/load round-trip produces equivalent data
-- Parameterized queries throughout
-- Transaction rollback on error
-- `tsc --noEmit` passes
+- All test keywords detected in PDF text extraction
+- No formatting artifacts interfere with keyword matching
+- ATS score from extracted PDF matches expected range (within 5%)
+- Both templates pass ATS check
 
 ---
 
-### 3.4: Tailor Pipeline + Route
+### 5.4: Integration Test Suite
 
-**Files**: `server/src/services/pipelineService.ts` (edit), `server/src/routes/api.ts` (edit)
+**Files**: Multiple test files (see below)
+
+**What**: Write integration tests for critical paths:
+
+**Server integration tests** (`server/src/__tests__/integration/`):
+- `extract.test.ts` — POST /extract with PDF + text, verify SSE events
+- `analyze.test.ts` — POST /analyze with extracted data, verify scoring
+- `tailor.test.ts` — POST /tailor with analysis + JD, verify rewrites
+- `rewrite-persistence.test.ts` — PATCH /tailor/rewrite/:id, GET /tailor/:analysisId
+
+**Client integration tests** (`client/src/__tests__/integration/`):
+- `editor-flow.test.tsx` — Initialize editor → edit → accept rewrite → verify resolved document
+- `pdf-generation.test.tsx` — Editor state → generate PDF → verify content
+
+**Approach**: Server tests mock AI service (deterministic responses), use real DB queries against test DB. Client tests use real stores, mock API calls.
+
+**Depends on**: Nothing
+
+**Acceptance**:
+- Server: extract pipeline returns structured sections
+- Server: analyze pipeline returns metrics + scores
+- Server: tailor pipeline returns classified rewrites
+- Server: rewrite persistence round-trips correctly
+- Client: editor flow initializes and resolves correctly
+- Client: PDF generation produces valid output
+
+---
+
+### 6.1: Onboarding Flow
+
+**Files**: `client/src/components/onboarding/OnboardingOverlay.tsx` (new), `client/src/components/onboarding/OnboardingStep.tsx` (new), `client/src/components/onboarding/__tests__/OnboardingOverlay.test.tsx` (new)
+
+**What**: First-time user walkthrough:
+- 3-4 step overlay: (1) Upload your resume, (2) Get scored on ATS + content, (3) Tailor to any job, (4) Edit and export
+- Shows on first visit (localStorage flag `resumetra_onboarding_complete`)
+- "Skip" button on each step, "Don't show again" at end
+- Brief explanation of: honest tailoring (no fabrication), font replacement, ATS scoring
+
+**Depends on**: Nothing
+
+**Acceptance**:
+- Overlay appears on first visit
+- Steps progress correctly
+- "Skip" dismisses overlay
+- "Don't show again" persists to localStorage
+- Overlay does not reappear after completion
+- Mobile-responsive layout
+
+---
+
+### 6.2: Empty States + Error Boundaries
+
+**Files**: `client/src/components/ui/EmptyState.tsx` (new), `client/src/components/ui/ErrorBoundary.tsx` (new), `client/src/pages/ErrorFallback.tsx` (new), multiple component updates
 
 **What**:
 
-**`runTailorPipeline({ analysisId, jobDescription }, sendSSE)`** in pipelineService:
-1. Load document via `loadAnalysisDocument(analysisId)`
-2. Load analysis results via `loadAnalysisResults(analysisId)`
-3. Re-detect profession, get KB
-4. Extract JD keywords (reuse `extractJdKeywordsTool`)
-5. Call `runTailorAgent()`
-6. Persist via `saveRewrites()`
-7. SSE: `tailoring_complete`
+**Empty states** for:
+- Dashboard before any analysis
+- Editor with no document loaded
+- Analysis results with no data
+- History with no entries
+- ATS report with no JD provided
 
-**Routes in api.ts** (replace 503 stubs):
-- `POST /tailor` — SSE streaming, requires auth, ownership check
-- `GET /tailor/:analysisId` — load persisted rewrites, requires auth
-- `PATCH /tailor/rewrite/:rewriteId` — accept/reject, requires auth, ownership check
+**Error boundaries**:
+- Top-level App error boundary with recovery actions (retry, go home)
+- Editor error boundary (isolates editor crashes from dashboard)
+- PDF generation error boundary (shows error + fallback to preview-only)
 
-**Depends on**: 3.2, 3.3
+**Depends on**: Nothing
 
 **Acceptance**:
-- POST streams SSE events, returns rewrites
-- GET returns persisted rewrites
-- PATCH updates acceptance
-- Ownership checks on all endpoints
-- `tsc --noEmit` passes
+- EmptyState renders icon + message + optional action button
+- All listed views show empty state when no data
+- ErrorBoundary catches render errors
+- Recovery actions work (retry reloads, go home navigates)
+- Editor crash doesn't break dashboard
+- PDF error shows meaningful message
 
 ---
 
-### 3.5: Client API + SSE Types
+### 6.3: Resume History (v2 Rebuild)
 
-**Files**: `client/src/types/api-responses.ts` (edit), `client/src/services/api.ts` (edit)
+**Files**: `server/src/db/history.ts` (new, replaces `historyService.ts`), `server/src/routes/api.ts` (edit — re-enable history endpoints), `client/src/services/api.ts` (edit — add history API calls), `client/src/components/dashboard/AnalysisHistory.tsx` (rewrite against v2 types), `client/src/store/useStore.ts` (edit — add history state)
+
+**What**: Rebuild history feature against v2 data model:
+- Server: `GET /api/v1/history` — paginated list of user's analyses (from `resume_sections` table)
+- Server: `GET /api/v1/history/:analysisId` — full analysis data (sections + scores + rewrites)
+- Client: history list in dashboard, click to reload analysis into store
+- Transform v2 DB rows to camelCase at API boundary
+
+**Depends on**: Nothing
+
+**Acceptance**:
+- Authenticated user sees analysis history
+- History list paginated (10 per page)
+- Click entry loads full analysis into store
+- Loaded analysis shows in editor/preview
+- Guest users see "Sign in to save history" CTA
+- History persists across sessions
+
+---
+
+### 6.4: Free Tier Paywall
+
+**Files**: `client/src/components/paywall/PaywallGate.tsx` (new), `client/src/components/paywall/PaywallModal.tsx` (new), `client/src/store/useStore.ts` (edit — add paywall state), `server/src/routes/api.ts` (edit — add usage enforcement)
+
+**What**: Gate premium features for free tier:
+
+**Free tier limits** (per spec decisions):
+- Analysis: 3 free analyses (guest + authenticated)
+- Editor: view-only for free users (no edit, no accept/reject)
+- PDF download: paid only
+- Issue list: first 3 issues only for free users
+- Tailor: 1 free tailor run per analysis
+
+**Implementation**:
+- `PaywallGate` component wraps premium features — checks user tier, shows CTA if blocked
+- `PaywallModal` — explains what's locked + pricing CTA
+- Server: `GET /api/v1/usage` returns `{ analysesUsed, analysesLimit, tier }`
+- Server: middleware checks usage before premium endpoints
+
+**Depends on**: 6.3 (history needed to count usage)
+
+**Acceptance**:
+- Free user blocked from PDF download (modal shown)
+- Free user sees first 3 issues only
+- Free user limited to 1 tailor run
+- Free user limited to 3 analyses total
+- Authenticated user sees usage counter
+- Paywall modal shows pricing CTA
+- Premium user (when implemented) has no restrictions
+
+---
+
+### 6.5: Security Review + Cleanup
+
+**Files**: No new files — review and edit existing
 
 **What**:
+- Input sanitization: verify all user inputs sanitized before DB storage
+- Rate limiting: review current limits, add per-endpoint granularity
+- PDF retention: confirm no PDFs stored server-side
+- JWT security: review token expiry, refresh mechanism
+- CORS: verify origin whitelist
+- SQL injection: audit all parameterized queries
+- XSS: verify no dangerouslySetInnerHTML without sanitization
+- Environment variables: confirm no secrets in client bundle
+- CSP headers: add Content-Security-Policy
 
-SSE types: `SSETailoringStart`, `SSETailoringSection`, `SSETailoringRewrite`, `SSETailoringComplete`
-
-API functions:
-- `tailorResumeStream(analysisId, jobDescription, callbacks)` — SSE streaming, same pattern as `analyzeResumeStream()`
-- `fetchRewrites(analysisId)` — GET
-- `patchRewriteAcceptance(rewriteId, accepted)` — PATCH
-
-**Depends on**: Nothing (can start parallel with server tasks)
+**Depends on**: Nothing
 
 **Acceptance**:
-- `tailorResumeStream()` parses all SSE event types
-- Error handling matches existing pattern
-- `tsc --noEmit` passes
+- No unsanitized user input reaches DB
+- Rate limiting active on all public endpoints
+- No PDFs stored on server filesystem
+- JWT expiry enforced
+- CORS restricted to allowed origins
+- All queries use parameterized inputs
+- No raw HTML injection without sanitization
+- No secrets in client build output
+- CSP headers present
 
 ---
 
-### 3.6: Store Extensions
+### 6.6: Legacy Code Removal
 
-**Files**: `client/src/store/useStore.ts` (edit)
+**Files**: Multiple deletions/edits
 
-**What**: Add tailor state:
+**What**: Remove deprecated v1 code:
 
-```
-tailorPhase: "idle" | "classifying" | "tailoring" | "complete" | "error"
-tailorProgress: { sectionId, sectionTitle, index, total } | null
-tailorRewrites: Rewrite[]
-tailorStats: { rewritten, reframed, missing, total } | null
-```
+**Remove**:
+- `server/src/services/historyService.ts` — replaced by `db/history.ts` (6.3)
+- Legacy AI functions in `aiService.ts`: `generateCareerMap()`, `compareWithJobDescription()`, `tailorResume()`
+- Legacy schemas in `schemas.ts` related to v1 analysis
+- `client/src/utils/editorTransforms.ts` — replaced by `resolvedDocumentToPdfData.ts`
+- Any remaining TipTap imports/references
 
-Actions: `setTailorPhase`, `setTailorProgress`, `addTailorRewrite` (incremental SSE append), `setTailorRewrites`, `acceptTailorRewrite`, `rejectTailorRewrite`, `clearTailorState`
+**Keep**:
+- V1 SQL files in `server/src/db/*.sql` — migration reference
+- V1 migration files — must stay for DB compatibility
+- `client/src/utils/pdfUtils.ts` — still used for upload flow text extraction
 
-`clearCurrentAnalysis` also clears tailor state.
+**Re-enable**:
+- `POST /job-match` — return 503 remains (rebuild is post-launch)
+- `POST /career-map` — return 503 remains (rebuild is post-launch)
 
-**Depends on**: 3.5
+**Depends on**: 6.3 (history rebuilt), 5.4 (integration tests confirm v2 works)
 
 **Acceptance**:
-- Phase transitions correct
-- `addTailorRewrite` appends incrementally
-- Accept/reject update immutably
-- Existing state unaffected
-- `tsc --noEmit` passes
+- No references to removed functions remain
+- `tsc --noEmit` passes all 3 packages
+- All tests pass after removal
+- No dead imports or unused types
+- Build succeeds
 
 ---
 
-### 3.7: Tailor Results UI
+### 6.7: Final Verification + Launch Readiness
 
-**Files** (new): `client/src/components/tailor/TailorResults.tsx`, `RewriteCard.tsx`, `ClassificationBadge.tsx`, `LearningPathCard.tsx`, `RewriteDiff.tsx`, `RewriteManager.tsx`
-
-**What**:
-
-| Component | Purpose |
-|-----------|---------|
-| `ClassificationBadge` | REWRITTEN (success), REFRAMED (warning), MISSING (info) |
-| `RewriteCard` | Before/after diff, rationale, keywords, accept/reject buttons |
-| `LearningPathCard` | MISSING skill: courses, projects, timeline, target bullet |
-| `RewriteDiff` | Word-level before/after comparison |
-| `RewriteManager` | Accept All / Reject All / filter by classification |
-| `TailorResults` | Container: groups by section, shows stats, streaming progress |
-
-Integration: "Tailor Resume" button on analysis results page (when JD present + analysis complete).
-
-**Depends on**: 3.6
-
-**Acceptance**:
-- All three classification badges render with correct colors
-- Accept/reject updates visual state
-- LearningPathCard renders for MISSING rewrites
-- RewriteManager filters work
-- Streaming progress shows during tailoring
-- `tsc --noEmit` passes
-
----
-
-### 3.8: Integration Verification
-
-**What**: End-to-end validation against spec success criteria:
-- `tsc --noEmit` all 3 packages
-- `vitest run` server + client
-- Manual: upload → extract → analyze → tailor → rewrites display
+**What**: End-to-end validation:
+- `tsc --noEmit` all 3 packages — 0 errors
+- `vitest run` server + client — all pass
+- Coverage check: deterministic metrics 90%+, ATS scoring 90%+
+- Manual: full flow upload → extract → analyze → tailor → editor → PDF
 - Manual: accept/reject persists across page refresh
-- Manual: no fabricated skills in REWRITTEN classification
+- Manual: template switch preserves edits
+- Manual: PDF download matches preview
+- Manual: BuildMode works for thin resume
+- Manual: onboarding appears on fresh visit
+- Manual: empty states render correctly
+- Manual: error recovery works (simulate component error)
+- Manual: history loads past analysis
+- Manual: paywall gates free users
+- Manual: mobile-responsive across all views
+- Lighthouse: performance > 80, accessibility > 90
 
 **Depends on**: All previous
 
@@ -251,16 +325,29 @@ Integration: "Tailor Resume" button on analysis results page (when JD present + 
 ## Dependency Graph
 
 ```
-3.1 (Tools) ──→ 3.2 (Agent) ──→ 3.4 (Pipeline+Route) ──┐
-                                                          ├──→ 3.8 (Verify)
-3.3 (DB) ─────────────────────→ 3.4 ────────────────────┘
-
-3.5 (Client API) ──→ 3.6 (Store) ──→ 3.7 (UI) ──→ 3.8
+Phase 5:
+5.1 (BuildMode) ─────────────────────────────────────────┐
+5.2 (PDF Verify) ──→ 5.3 (ATS Check) ───────────────────┤
+5.4 (Integration Tests) ─────────────────────────────────┤
+                                                          │
+Phase 6:                                                  │
+6.1 (Onboarding) ─────────────────────────────────────────┤
+6.2 (Empty States + Error Boundaries) ───────────────────┤
+6.3 (History v2) ──→ 6.4 (Paywall) ─────────────────────┤
+6.5 (Security) ──────────────────────────────────────────┤
+6.6 (Legacy Cleanup) ←── 6.3 + 5.4 ─────────────────────┤
+                                                          │
+6.7 (Final Verify) ←──────────────────────────────────────┘
 ```
 
-**Parallel**: 3.1 + 3.3 + 3.5 can start simultaneously. 3.2 starts after 3.1.
+**Parallel groups**:
+- **Group A** (no deps): 5.1, 5.2, 5.4, 6.1, 6.2, 6.3, 6.5
+- **Group B** (after 5.2): 5.3
+- **Group C** (after 6.3): 6.4
+- **Group D** (after 6.3 + 5.4): 6.6
+- **Group E** (after all): 6.7
 
-**Critical path**: 3.1 → 3.2 → 3.4 → 3.8
+**Critical path**: 6.3 → 6.4 → 6.7 (history → paywall → verify)
 
 ---
 
@@ -268,34 +355,53 @@ Integration: "Tailor Resume" button on analysis results page (when JD present + 
 
 | Location | File | Purpose |
 |----------|------|---------|
-| server/stages | `tailorTools.ts` | Tool definitions + Zod schemas |
-| server/stages | `tailorPrompts.ts` | System/user prompt builders |
-| server/stages | `stage4_tailoring.ts` | Tailor agent (`runTailorAgent`) |
-| server/db | `rewrites.ts` | `saveRewrites`, `loadRewrites`, `updateRewriteAcceptance` |
-| client/components/tailor | `TailorResults.tsx` | Main container |
-| client/components/tailor | `RewriteCard.tsx` | Individual rewrite card |
-| client/components/tailor | `ClassificationBadge.tsx` | REWRITTEN/REFRAMED/MISSING badge |
-| client/components/tailor | `LearningPathCard.tsx` | MISSING learning path display |
-| client/components/tailor | `RewriteDiff.tsx` | Before/after diff |
-| client/components/tailor | `RewriteManager.tsx` | Accept All/Reject All/filter toolbar |
+| client/editor | `BuildMode.tsx` | Guided content builder for thin resumes |
+| client/pdf/tests | `ResumePdfDocument.test.tsx` | PDF content verification |
+| client/pdf/tests | `atsCompatibility.test.ts` | ATS parseability check |
+| client/onboarding | `OnboardingOverlay.tsx` | First-time user walkthrough |
+| client/onboarding | `OnboardingStep.tsx` | Individual onboarding step |
+| client/ui | `EmptyState.tsx` | Reusable empty state component |
+| client/ui | `ErrorBoundary.tsx` | Error boundary with recovery |
+| client/pages | `ErrorFallback.tsx` | Error fallback page |
+| client/paywall | `PaywallGate.tsx` | Feature gate wrapper |
+| client/paywall | `PaywallModal.tsx` | Paywall CTA modal |
+| server/db | `history.ts` | V2 history queries |
+| server/tests/integration | `extract.test.ts` | Extraction integration test |
+| server/tests/integration | `analyze.test.ts` | Analysis integration test |
+| server/tests/integration | `tailor.test.ts` | Tailor integration test |
+| server/tests/integration | `rewrite-persistence.test.ts` | Rewrite persistence test |
+| client/tests/integration | `editor-flow.test.tsx` | Editor flow integration test |
+| client/tests/integration | `pdf-generation.test.tsx` | PDF generation integration test |
 
 ## Modified Files Summary
 
 | File | Changes |
 |------|---------|
-| `server/src/services/pipelineService.ts` | Add `runTailorPipeline()` |
-| `server/src/routes/api.ts` | Replace 3 x 503 stubs with real handlers |
-| `client/src/types/api-responses.ts` | Add tailoring SSE types |
-| `client/src/services/api.ts` | Add `tailorResumeStream`, `fetchRewrites`, `patchRewriteAcceptance` |
-| `client/src/store/useStore.ts` | Add tailor state + actions |
+| `client/src/store/useResumeEditorStore.ts` | Add `isThinResume` computed, BuildMode state |
+| `client/src/store/useStore.ts` | Add history state, paywall state |
+| `client/src/services/api.ts` | Add history API calls, usage check |
+| `client/src/components/dashboard/AnalysisHistory.tsx` | Rewrite against v2 types |
+| `server/src/routes/api.ts` | Re-enable history endpoints, add usage enforcement |
+| `server/src/services/aiService.ts` | Remove legacy functions |
+| `server/src/schemas.ts` | Remove legacy v1 schemas |
 
-## Verification
+## Files to Remove
 
-1. `cd shared && npx tsc --noEmit` — 0 errors
-2. `cd server && npx tsc --noEmit` — 0 errors
-3. `cd client && npx tsc --noEmit` — 0 errors
-4. `cd server && npx vitest run` — all pass
-5. `cd client && npx vitest run` — all pass
-6. Manual: upload → extract → analyze → tailor → rewrites with correct classifications
-7. Manual: accept/reject persists across page refresh
-8. Manual: MISSING rewrites show learning path cards
+| File | Reason |
+|------|--------|
+| `client/src/utils/editorTransforms.ts` | Replaced by `resolvedDocumentToPdfData.ts` |
+| `server/src/services/historyService.ts` | Replaced by `server/src/db/history.ts` |
+
+## Verification Gate (after 6.7)
+
+- [ ] `tsc --noEmit` passes all 3 packages
+- [ ] `vitest run` passes server + client
+- [ ] Coverage: deterministic metrics 90%+, ATS scoring 90%+
+- [ ] Manual: full flow works end-to-end
+- [ ] Manual: PDF matches preview
+- [ ] Manual: BuildMode for thin resume
+- [ ] Manual: onboarding on fresh visit
+- [ ] Manual: history loads past analyses
+- [ ] Manual: paywall gates free users
+- [ ] Manual: mobile-responsive
+- [ ] Lighthouse: performance > 80, accessibility > 90

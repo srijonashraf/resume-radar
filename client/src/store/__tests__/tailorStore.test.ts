@@ -79,8 +79,6 @@ describe("useStore tailor state", () => {
     const progress = {
       sectionId: "section-0",
       sectionTitle: "Experience",
-      index: 0,
-      total: 3,
     };
     useStore.getState().setTailorProgress(progress);
 
@@ -91,8 +89,6 @@ describe("useStore tailor state", () => {
     useStore.getState().setTailorProgress({
       sectionId: "s1",
       sectionTitle: "Skills",
-      index: 0,
-      total: 1,
     });
     useStore.getState().setTailorProgress(null);
 
@@ -169,8 +165,6 @@ describe("useStore tailor state", () => {
     useStore.getState().setTailorProgress({
       sectionId: "s1",
       sectionTitle: "Skills",
-      index: 0,
-      total: 1,
     });
 
     useStore.getState().clearTailorState();

@@ -10,19 +10,14 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { verifyGoogleIdToken, signAppToken } from "../services/authService";
 import { checkGuestUsage } from "../services/guestService";
 import {
-  compareWithJobDescription,
-  generateCareerMap,
-  tailorResume,
   MODEL,
-  type TokenUsage,
 } from "../services/aiService";
-import {
-  saveTokenUsage,
-} from "../services/historyService";
 import { runExtractionPipeline, runAnalysisPipeline, runTailorPipeline } from "../services/pipelineService";
 import { loadRewrites, updateRewriteAcceptance } from "../db/rewrites";
+import { loadAnalysisDocument, loadAnalysisResults } from "../db/sections";
+import { getHistoryList, getHistoryDetail, deleteHistoryEntry } from "../db/history";
 import { upsertUserFromGoogleProfile, incrementAnalysisCount } from "../services/userService";
-import { ValidationError } from "../errors";
+import { ValidationError, NotFoundError } from "../errors";
 import pool from "../config/database";
 
 const router = express.Router();
@@ -285,10 +280,77 @@ router.get(
   }),
 );
 
+// ==================== HISTORY (v2) ====================
+
+router.get(
+  "/history",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const userId = req.user!.id;
+    const page = Math.max(1, parseInt(req.query.page as string || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string || "10", 10)));
+
+    const result = await getHistoryList(userId, page, limit);
+
+    res.json({
+      data: result.items,
+      metadata: {
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: Math.ceil(result.total / result.limit),
+        },
+      },
+    });
+  }),
+);
+
+router.get(
+  "/history/:analysisId",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const analysisId = req.params.analysisId as string;
+    const userId = req.user!.id;
+
+    const meta = await getHistoryDetail(analysisId, userId);
+    if (!meta) throw new NotFoundError("Analysis not found");
+
+    const documentData = await loadAnalysisDocument(analysisId);
+    const analysisResults = await loadAnalysisResults(analysisId);
+    const rewrites = await loadRewrites(analysisId);
+
+    res.json({
+      data: {
+        id: meta.id,
+        originalFileName: meta.originalFileName,
+        sourceType: meta.sourceType,
+        createdAt: meta.createdAt,
+        document: documentData?.document ?? null,
+        analysisResults,
+        rewrites,
+      },
+    });
+  }),
+);
+
+router.delete(
+  "/history/:analysisId",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const analysisId = req.params.analysisId as string;
+    const userId = req.user!.id;
+
+    const deleted = await deleteHistoryEntry(analysisId, userId);
+    if (!deleted) throw new NotFoundError("Analysis not found");
+
+    res.json({ data: { deleted: true } });
+  }),
+);
+
 // ==================== TEMPORARILY DISABLED (Phase 3) ====================
 
-// /job-match, /career-map, /tailor return 503 until rebuilt against new data model.
-// History endpoints disabled until rebuilt against new schema.
+// /job-match, /career-map return 503 until rebuilt against new data model.
 
 router.post(
   "/job-match",

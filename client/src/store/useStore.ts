@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AnalysisResultV2, Rewrite } from "@resumetra/shared";
+import type { HistoryListItem } from "../services/api";
 
 export interface ResumeData {
   file: File | null;
@@ -213,17 +214,25 @@ interface StoreState {
   setAnalysisPhase: (phase: AnalysisPhase) => void;
   setAnalysisProgress: (progress: { sectionId: string; sectionTitle: string } | null) => void;
   tailorPhase: TailorPhase;
-  tailorProgress: { sectionId: string; sectionTitle: string; index: number; total: number } | null;
+  tailorProgress: { sectionId: string; sectionTitle: string } | null;
   tailorRewrites: Rewrite[];
   tailorStats: { rewritten: number; reframed: number; missing: number; total: number } | null;
   setTailorPhase: (phase: TailorPhase) => void;
-  setTailorProgress: (progress: { sectionId: string; sectionTitle: string; index: number; total: number } | null) => void;
+  setTailorProgress: (progress: { sectionId: string; sectionTitle: string } | null) => void;
   addTailorRewrite: (rewrite: Rewrite) => void;
   setTailorRewrites: (rewrites: Rewrite[]) => void;
   setTailorStats: (stats: { rewritten: number; reframed: number; missing: number; total: number } | null) => void;
   acceptTailorRewrite: (rewriteId: string) => void;
   rejectTailorRewrite: (rewriteId: string) => void;
   clearTailorState: () => void;
+  // History
+  historyList: HistoryListItem[];
+  historyTotal: number;
+  historyPage: number;
+  historyLoading: boolean;
+  setHistoryList: (items: HistoryListItem[], total: number, page: number) => void;
+  setHistoryLoading: (loading: boolean) => void;
+  removeHistoryEntry: (id: string) => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -243,6 +252,10 @@ const useStore = create<StoreState>()((set) => ({
   tailorProgress: null,
   tailorRewrites: [],
   tailorStats: null,
+  historyList: [],
+  historyTotal: 0,
+  historyPage: 1,
+  historyLoading: false,
   setResumeData: (data) => set({ resumeData: data }),
   setJobDescription: (description) => set({ jobDescription: description }),
   clearCurrentAnalysis: () =>
@@ -298,6 +311,14 @@ const useStore = create<StoreState>()((set) => ({
       tailorRewrites: [],
       tailorStats: null,
     }),
+  setHistoryList: (items, total, page) =>
+    set({ historyList: items, historyTotal: total, historyPage: page }),
+  setHistoryLoading: (loading) => set({ historyLoading: loading }),
+  removeHistoryEntry: (id) =>
+    set((state) => ({
+      historyList: state.historyList.filter((item) => item.id !== id),
+      historyTotal: Math.max(0, state.historyTotal - 1),
+    })),
 }));
 
 export { useStore };

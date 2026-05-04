@@ -6,6 +6,7 @@ import type { GapClassification } from "@resumetra/shared";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import { cn } from "../../utils/cn";
+import PaywallGate from "../paywall/PaywallGate";
 
 // ── Classification badge config ────────────────────────────────────────────
 
@@ -172,14 +173,27 @@ export default function EditorToolbar() {
         >
           Reset
         </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!sourceDocument || isGenerating}
-          onClick={handleDownloadPdf}
+        <PaywallGate
+          feature="pdf_download"
+          fallback={
+            <Button
+              variant="primary"
+              size="sm"
+              disabled
+            >
+              Download PDF
+            </Button>
+          }
         >
-          {isGenerating ? "Generating..." : "Download PDF"}
-        </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!sourceDocument || isGenerating}
+            onClick={handleDownloadPdf}
+          >
+            {isGenerating ? "Generating..." : "Download PDF"}
+          </Button>
+        </PaywallGate>
       </div>
     </div>
   );

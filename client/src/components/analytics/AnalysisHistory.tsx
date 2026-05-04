@@ -1,15 +1,12 @@
-import Card from "../ui/Card";
+import EmptyState from "../ui/EmptyState";
 
 const AnalysisHistory = () => {
   return (
-    <Card padding="lg" className="text-center">
-      <h3 className="text-xl font-medium text-stone-600 mb-2">
-        Analysis History
-      </h3>
-      <p className="text-stone-400">
-        Temporarily disabled. Will be rebuilt against the new data model.
-      </p>
-    </Card>
+    <EmptyState
+      icon={<span>&#x1F4CB;</span>}
+      title="No History"
+      description="Your analysis history will appear here"
+    />
   );
 };
 

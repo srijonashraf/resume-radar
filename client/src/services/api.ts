@@ -18,6 +18,7 @@ import type {
 } from "../types";
 
 import type {
+  ExtractionResult,
   JobMatchResult,
   CareerMapResult,
   TailorResult,
@@ -397,6 +398,60 @@ export interface UsageInfo {
 export const fetchUsage = async (): Promise<UsageInfo> => {
   const response = await api.get("/usage");
   return response.data.data;
+};
+
+// ==================== History (v2) ====================
+
+export interface HistoryListItem {
+  id: string;
+  originalFileName: string | null;
+  sourceType: "pdf" | "text";
+  sectionCount: number;
+  hasTailoring: boolean;
+  createdAt: string;
+}
+
+export interface HistoryDetail {
+  id: string;
+  originalFileName: string | null;
+  sourceType: "pdf" | "text";
+  createdAt: string;
+  document: ExtractionResult["document"] | null;
+  analysisResults: unknown;
+  rewrites: Rewrite[];
+}
+
+export interface HistoryListResponse {
+  items: HistoryListItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export const fetchHistory = async (
+  page = 1,
+  limit = 10,
+): Promise<HistoryListResponse> => {
+  const response = await api.get("/history", { params: { page, limit } });
+  return {
+    items: response.data.data,
+    total: response.data.metadata.pagination.total,
+    page: response.data.metadata.pagination.page,
+    totalPages: response.data.metadata.pagination.totalPages,
+  };
+};
+
+export const fetchHistoryDetail = async (
+  analysisId: string,
+): Promise<HistoryDetail> => {
+  const response = await api.get(`/history/${analysisId}`);
+  return response.data.data;
+};
+
+export const deleteHistoryEntry = async (
+  analysisId: string,
+): Promise<void> => {
+  await api.delete(`/history/${analysisId}`);
 };
 
 export default api;
