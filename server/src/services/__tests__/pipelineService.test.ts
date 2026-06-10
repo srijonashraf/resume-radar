@@ -162,8 +162,8 @@ describe("runExtractionPipeline", () => {
   it("sends SSE events in correct order", async () => {
     // Make extractResume call sendSSE to simulate real behavior
     vi.mocked(extractResume).mockImplementation(async (_text, sseSender) => {
-      sseSender("extracting", { sectionName: "contact", index: 0, total: 2 });
-      sseSender("extracting", { sectionName: "Experience", index: 1, total: 2 });
+      sseSender("extracting", { sectionName: "Experience", index: 0, total: 2 });
+      sseSender("extracting", { sectionName: "Skills", index: 1, total: 2 });
       return MOCK_DOCUMENT;
     });
 
@@ -211,6 +211,43 @@ describe("runExtractionPipeline", () => {
       (s) => s.name === "skills",
     );
     expect(skillsCoverage?.present).toBe(true);
+  });
+
+  it("detects contact presence from document.contact (not sections)", async () => {
+    const result = await runExtractionPipeline(
+      { text: "text" },
+      sendSSE,
+    );
+
+    // Contact is derived from document.contact fields, not section titles
+    const contactCoverage = result.sectionCoverage.required.find(
+      (s) => s.name === "contact",
+    );
+    expect(contactCoverage?.present).toBe(true); // fullName + email set in MOCK_DOCUMENT
+  });
+
+  it("detects LinkedIn/github from document.contact fields", async () => {
+    // Override with LinkedIn + GitHub in contact
+    const docWithSocials: ResumeDocument = {
+      ...MOCK_DOCUMENT,
+      contact: {
+        ...MOCK_DOCUMENT.contact,
+        linkedin: "https://linkedin.com/in/johndoe",
+        github: "https://github.com/johndoe",
+      },
+    };
+    vi.mocked(extractResume).mockResolvedValue(docWithSocials);
+
+    const result = await runExtractionPipeline({ text: "text" }, sendSSE);
+
+    const linkedin = result.sectionCoverage.optional.find(
+      (s) => s.name === "linkedin",
+    );
+    const github = result.sectionCoverage.optional.find(
+      (s) => s.name === "github",
+    );
+    expect(linkedin?.present).toBe(true);
+    expect(github?.present).toBe(true);
   });
 
   it("persists sections for authenticated users", async () => {

@@ -33,4 +33,6 @@ You must classify each section into one of these 5 types:
 5. Capture ALL items within each section — do not summarize or abbreviate.
 6. Keep the original wording — do not rephrase or improve the content.
 7. If a section has mixed content types, choose the dominant type.
-8. For contact info, extract exactly what is present. Set missing fields to null.`;
+8. For contact info, extract exactly what is present. Set missing fields to null.
+9. Do NOT create a "Contact" section — contact info is extracted separately. If the resume has a contact/header area, skip it in section detection.
+10. Merge semantically identical sections. If two detected sections have the same meaning (e.g., "Profile" and "Summary"), detect only ONE section using the most descriptive title. Never produce duplicate or overlapping sections.`;

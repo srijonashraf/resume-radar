@@ -1,4 +1,5 @@
 import type {
+  ContactInfo,
   DynamicSection,
   ResumeDocument,
   AnalysisResultV2,
@@ -87,6 +88,7 @@ export async function runExtractionPipeline(
     document.sections,
     profession.professionId,
     careerLevel.levelId,
+    document.contact,
   );
 
   // Update document with detected profession/level
@@ -145,6 +147,7 @@ export async function runAnalysisPipeline(
     document.sections,
     profession.professionId,
     careerLevel.levelId,
+    document.contact,
   );
 
   // Step 3: Deterministic metrics
@@ -318,6 +321,7 @@ function computeSectionCoverage(
   sections: DynamicSection[],
   professionId: string,
   levelId: string,
+  contact?: ContactInfo,
 ): ExtractionResult["sectionCoverage"] {
   const kb = getKnowledgeBase(professionId);
   const level = kb.careerLevels.find((l) => l.id === levelId);
@@ -325,10 +329,27 @@ function computeSectionCoverage(
     return { required: [], recommended: [], optional: [] };
   }
 
-  const sectionTitles = sections.map((s) => s.title.toLowerCase());
+  // Build set of canonical section titles present
+  const presentCanonicals = new Set<string>();
+  for (const section of sections) {
+    presentCanonicals.add(getCoverageCanonical(section.title));
+  }
 
-  const checkPresence = (name: string) =>
-    sectionTitles.some((t) => t.includes(name));
+  // Check contact-derived fields
+  const hasContact = contact && (
+    Boolean(contact.fullName) ||
+    Boolean(contact.email) ||
+    Boolean(contact.phone)
+  );
+  const hasLinkedIn = Boolean(contact?.linkedin);
+  const hasGitHub = Boolean(contact?.github);
+
+  if (hasContact) presentCanonicals.add("contact");
+  if (hasLinkedIn) presentCanonicals.add("linkedin");
+  if (hasGitHub) presentCanonicals.add("github");
+
+  const checkPresence = (name: string): boolean =>
+    presentCanonicals.has(name);
 
   return {
     required: level.requiredSections.map((name) => ({
@@ -344,4 +365,26 @@ function computeSectionCoverage(
       present: checkPresence(name),
     })),
   };
+}
+
+/** Canonical names used in KB section coverage checks. */
+const COVERAGE_ALIASES: Record<string, string[]> = {
+  contact: ["contact", "contact information", "personal information", "personal details"],
+  experience: ["experience", "work experience", "professional experience", "work history", "employment"],
+  education: ["education", "academic background", "education and training", "academic"],
+  skills: ["skills", "technical skills", "core competencies", "competencies", "areas of expertise", "expertise"],
+  summary: ["summary", "profile", "professional summary", "about", "objective", "career objective"],
+  projects: ["projects", "personal projects", "key projects", "selected projects"],
+  certifications: ["certifications", "certificates", "licenses", "professional certifications"],
+  open_source: ["open source", "open-source", "open source contributions", "contributions"],
+};
+
+function getCoverageCanonical(title: string): string {
+  const lower = title.toLowerCase().trim();
+  for (const [canonical, aliases] of Object.entries(COVERAGE_ALIASES)) {
+    if (aliases.some((alias) => lower.includes(alias))) {
+      return canonical;
+    }
+  }
+  return lower;
 }

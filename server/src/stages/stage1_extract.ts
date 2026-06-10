@@ -32,8 +32,7 @@ export async function extractResume(
   );
   const detectedSections = sectionsResult.data.sections;
 
-  // Step 2: Extract contact info
-  sendSSE("extracting", { sectionName: "contact", index: 0, total: detectedSections.length });
+  // Step 2: Extract contact info (no progress event — fast, internal step)
   const contactResult = await callTool(
     messages,
     [extractContactTool],
@@ -46,14 +45,14 @@ export async function extractResume(
   const sections: DynamicSection[] = [];
   const totalSections = detectedSections.length;
 
-  for (let i = 0; i < totalSections; i++) {
+  for (let i = 0; i < detectedSections.length; i++) {
     const detected = detectedSections[i];
     const sectionId = `section-${i}`;
     const sectionText = rawText.slice(detected.startIndex, detected.endIndex);
 
     sendSSE("extracting", {
       sectionName: detected.title,
-      index: i + 1,
+      index: i,
       total: totalSections,
     });
 
@@ -99,10 +98,59 @@ export async function extractResume(
     }
   }
 
+  // Step 4: Deduplicate sections by title (case-insensitive)
+  const dedupedSections = deduplicateSections(sections);
+
   return {
     contact,
-    sections,
+    sections: dedupedSections,
     detectedProfession: "generic",
     detectedCareerLevel: "all_levels",
   };
+}
+
+/** Title aliases that should be treated as the same semantic section. */
+const SECTION_ALIASES: Record<string, string[]> = {
+  summary: ["summary", "profile", "professional summary", "about", "objective", "career objective"],
+  experience: ["experience", "work experience", "professional experience", "work history", "employment history"],
+  education: ["education", "academic background", "education and training"],
+  skills: ["skills", "technical skills", "core competencies", "competencies", "areas of expertise"],
+  projects: ["projects", "personal projects", "key projects", "selected projects"],
+  certifications: ["certifications", "certificates", "licenses and certifications", "professional certifications"],
+};
+
+function getCanonicalTitle(title: string): string {
+  const lower = title.toLowerCase().trim();
+  for (const [canonical, aliases] of Object.entries(SECTION_ALIASES)) {
+    if (aliases.some((alias) => lower === alias || lower.includes(alias))) {
+      return canonical;
+    }
+  }
+  return lower;
+}
+
+function deduplicateSections(sections: DynamicSection[]): DynamicSection[] {
+  const seen = new Map<string, DynamicSection>();
+
+  for (const section of sections) {
+    const key = getCanonicalTitle(section.title);
+
+    if (seen.has(key)) {
+      // Merge: keep the one with more items
+      const existing = seen.get(key)!;
+      if (section.items.length > existing.items.length) {
+        seen.set(key, section);
+      }
+    } else {
+      seen.set(key, section);
+    }
+  }
+
+  // Re-index displayOrder after dedup
+  const result = Array.from(seen.values());
+  for (let i = 0; i < result.length; i++) {
+    result[i] = { ...result[i], displayOrder: i };
+  }
+
+  return result;
 }

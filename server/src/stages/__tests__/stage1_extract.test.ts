@@ -204,18 +204,15 @@ describe("extractResume", () => {
 
     await extractResume("resume text", sendSSE);
 
-    expect(sseEvents.length).toBe(3);
+    // Only 2 SSE events: detection placeholder + 1 section
+    expect(sseEvents.length).toBe(2);
     expect(sseEvents[0]).toEqual({
       event: "extracting",
       data: { sectionName: "sections", index: 0, total: 0 },
     });
     expect(sseEvents[1]).toEqual({
       event: "extracting",
-      data: { sectionName: "contact", index: 0, total: 1 },
-    });
-    expect(sseEvents[2]).toEqual({
-      event: "extracting",
-      data: { sectionName: "Experience", index: 1, total: 1 },
+      data: { sectionName: "Experience", index: 0, total: 1 },
     });
   });
 
@@ -267,5 +264,55 @@ describe("extractResume", () => {
     expect(result.sections[0].items[1].id).toBe("item-0-1");
     expect(result.sections[1].id).toBe("section-1");
     expect(result.sections[1].items[0].id).toBe("item-1-0");
+  });
+
+  it("deduplicates semantically identical sections", async () => {
+    // AI detects "Profile" and "Summary" as separate sections
+    mockCallTool.mockResolvedValueOnce({
+      data: {
+        sections: [
+          { title: "Profile", startIndex: 0, endIndex: 50, estimatedType: "text" },
+          { title: "Summary", startIndex: 50, endIndex: 100, estimatedType: "text" },
+        ],
+      },
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+    });
+
+    mockCallTool.mockResolvedValueOnce({
+      data: {
+        fullName: null, email: null, phone: null,
+        location: null, linkedin: null, github: null, portfolio: null,
+      },
+      usage: { inputTokens: 80, outputTokens: 40, totalTokens: 120 },
+    });
+
+    mockCallTool.mockResolvedValueOnce({
+      data: {
+        sectionId: "section-0",
+        type: "text",
+        title: "Profile",
+        displayOrder: 0,
+        items: [{ description: "Short profile" }],
+      },
+      usage: { inputTokens: 50, outputTokens: 30, totalTokens: 80 },
+    });
+
+    mockCallTool.mockResolvedValueOnce({
+      data: {
+        sectionId: "section-1",
+        type: "text",
+        title: "Summary",
+        displayOrder: 1,
+        items: [{ description: "Detailed summary" }, { description: "More info" }],
+      },
+      usage: { inputTokens: 50, outputTokens: 30, totalTokens: 80 },
+    });
+
+    const result = await extractResume("text", sendSSE);
+
+    // Should be deduplicated to 1 section (Summary wins — more items)
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].title).toBe("Summary");
+    expect(result.sections[0].displayOrder).toBe(0);
   });
 });

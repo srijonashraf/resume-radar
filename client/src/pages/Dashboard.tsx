@@ -12,7 +12,11 @@ import TailorResults from "../components/tailor/TailorResults";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
 import AppShell from "../components/app/AppShell";
 import ResumeEditorPanel from "../components/editor/ResumeEditorPanel";
-import { fetchUsage, tailorResumeStream, patchRewriteAcceptance } from "../services/api";
+import {
+  fetchUsage,
+  tailorResumeStream,
+  patchRewriteAcceptance,
+} from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -36,8 +40,12 @@ const Dashboard = () => {
   const setExtractionPhase = useStore((state) => state.setExtractionPhase);
   const extractionProgress = useStore((state) => state.extractionProgress);
   const extractionConfirmed = useStore((state) => state.extractionConfirmed);
-  const setExtractionConfirmed = useStore((state) => state.setExtractionConfirmed);
-  const setExtractionProgress = useStore((state) => state.setExtractionProgress);
+  const setExtractionConfirmed = useStore(
+    (state) => state.setExtractionConfirmed,
+  );
+  const setExtractionProgress = useStore(
+    (state) => state.setExtractionProgress,
+  );
   const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
   const analysisResult = useStore((state) => state.analysisResult);
   const analysisPhase = useStore((state) => state.analysisPhase);
@@ -82,7 +90,8 @@ const Dashboard = () => {
         !resumeData?.file ||
         extractionPhase !== "idle" ||
         extractionResult !== null
-      ) return;
+      )
+        return;
 
       setIsAnalyzing(true);
       setError(null);
@@ -100,7 +109,6 @@ const Dashboard = () => {
         setExtractionResult(result);
         setExtractionPhase("complete");
       } catch (err: unknown) {
-        console.error("Extraction error:", err);
         if (err instanceof ApiError) {
           setError(err.message);
         } else {
@@ -253,188 +261,202 @@ const Dashboard = () => {
         </div>
       )}
       {!showEditor && (
-      <div className="px-4 py-6 sm:px-0">
-        {!resumeData ? (
-          <div className="max-w-3xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="mb-8"
-            >
-              <Card padding="lg">
-                {usage && usage.remaining === 0 ? (
-                  <div className="text-center py-6 space-y-4">
-                    <NoSymbolIcon className="h-16 w-16 mx-auto text-red-400" />
-                    <h2 className="text-2xl font-bold text-red-600">
-                      Analysis Limit Reached
-                    </h2>
-                    <p className="text-stone-500 text-sm">
-                      You have used all your analyses ({usage.used}/
-                      {usage.limit})
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <h2 className="text-3xl font-bold text-stone-900 mb-4 text-center">
-                      Upload Your Resume
-                    </h2>
-                    <p className="text-stone-500 mb-8 text-center max-w-2xl mx-auto text-lg">
-                      Our AI will analyze your resume and provide personalized
-                      feedback to help you improve it.
-                    </p>
-                    <PdfUploader />
-                  </>
-                )}
-              </Card>
-            </motion.div>
-
-            {user && (
-              <div className="mt-8">
-                <DashboardTabs />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {error ? (
-              <Card
-                padding="lg"
-                className="text-center border-red-200 bg-red-50"
+        <div className="px-4 py-6 sm:px-0">
+          {!resumeData ? (
+            <div className="max-w-3xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mb-8"
               >
-                <div className="text-4xl mb-4">!</div>
-                <h2 className="text-xl font-bold text-red-600">
-                  Analysis Error
-                </h2>
-                <p className="text-red-500 mt-2 mb-6">{error}</p>
-                <button
-                  className="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
-                  onClick={handleNewAnalysis}
+                <Card padding="lg">
+                  {usage && usage.remaining === 0 ? (
+                    <div className="text-center py-6 space-y-4">
+                      <NoSymbolIcon className="h-16 w-16 mx-auto text-red-400" />
+                      <h2 className="text-2xl font-bold text-red-600">
+                        Analysis Limit Reached
+                      </h2>
+                      <p className="text-stone-500 text-sm">
+                        You have used all your analyses ({usage.used}/
+                        {usage.limit})
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-3xl font-bold text-stone-900 mb-4 text-center">
+                        Upload Your Resume
+                      </h2>
+                      <p className="text-stone-500 mb-8 text-center max-w-2xl mx-auto text-lg">
+                        Our AI will analyze your resume and provide personalized
+                        feedback to help you improve it.
+                      </p>
+                      <PdfUploader />
+                    </>
+                  )}
+                </Card>
+              </motion.div>
+
+              {user && (
+                <div className="mt-8">
+                  <DashboardTabs />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {error ? (
+                <Card
+                  padding="lg"
+                  className="text-center border-red-200 bg-red-50"
                 >
-                  Try Again
-                </button>
-              </Card>
-            ) : extractionPhase === "validating" ? (
-              <Card padding="xl" className="text-center">
-                <Spinner size="lg" className="mb-6" />
-                <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  Validating your document...
-                </h2>
-                <p className="text-stone-500 text-lg">
-                  Checking document structure and content.
-                </p>
-              </Card>
-            ) : extractionPhase === "extracting" ? (
-              <Card padding="xl" className="text-center">
-                <Spinner size="lg" className="mb-6" />
-                <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  Extracting sections...
-                </h2>
-                {extractionProgress && (
+                  <div className="text-4xl mb-4">!</div>
+                  <h2 className="text-xl font-bold text-red-600">
+                    Analysis Error
+                  </h2>
+                  <p className="text-red-500 mt-2 mb-6">{error}</p>
+                  <button
+                    className="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    onClick={handleNewAnalysis}
+                  >
+                    Try Again
+                  </button>
+                </Card>
+              ) : extractionPhase === "validating" ? (
+                <Card padding="xl" className="text-center">
+                  <Spinner size="lg" className="mb-6" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                    Validating your document...
+                  </h2>
                   <p className="text-stone-500 text-lg">
-                    Processing: {extractionProgress.sectionName} (
-                    {extractionProgress.index + 1}/{extractionProgress.total})
+                    Checking document structure and content.
                   </p>
-                )}
-              </Card>
-            ) : extractionResult && !extractionConfirmed ? (
-              <SectionConfirmation
-                sections={extractionResult.document.sections}
-                onConfirm={() => setExtractionConfirmed(true)}
-              />
-            ) : extractionConfirmed && extractionResult && analysisPhase === "idle" ? (
-              <ResumeHealthCheck
-                profession={extractionResult.profession}
-                careerLevel={extractionResult.careerLevel}
-                sectionCoverage={extractionResult.sectionCoverage}
-                onAnalyze={handleAnalyze}
-                isAnalyzing={isAnalyzing}
-              />
-            ) : analysisPhase === "computing_metrics" ? (
-              <Card padding="xl" className="text-center">
-                <Spinner size="lg" className="mb-6" />
-                <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  Computing metrics...
-                </h2>
-                <p className="text-stone-500 text-lg">
-                  Analyzing word counts, bullet quality, and formatting.
-                </p>
-              </Card>
-            ) : analysisPhase === "analyzing" ? (
-              <Card padding="xl" className="text-center">
-                <Spinner size="lg" className="mb-6" />
-                <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  AI Analysis in Progress
-                </h2>
-                {analysisProgress && (
-                  <p className="text-stone-500 text-lg">
-                    Scoring: {analysisProgress.sectionTitle}
-                  </p>
-                )}
-              </Card>
-            ) : analysisPhase === "complete" && analysisResult && extractionResult ? (
-              <div className="space-y-6">
-                <AnalysisResults
-                  result={analysisResult}
-                  sectionTitles={
-                    new Map(
-                      extractionResult.document.sections.map((s) => [s.id, s.title]),
-                    )
-                  }
+                </Card>
+              ) : extractionPhase === "extracting" ? (
+                <Card padding="xl" className="text-center">
+                  <Spinner size="lg" className="mb-6" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                    Extracting sections...
+                  </h2>
+                  {extractionProgress && (
+                    <p className="text-stone-500 text-lg">
+                      Processing: {extractionProgress.sectionName} (
+                      {extractionProgress.index + 1}/{extractionProgress.total})
+                    </p>
+                  )}
+                </Card>
+              ) : extractionResult && !extractionConfirmed ? (
+                <SectionConfirmation
+                  sections={extractionResult.document.sections}
+                  onConfirm={() => setExtractionConfirmed(true)}
                 />
-                {tailorPhase === "idle" && jobDescription ? (
-                  <div className="text-center">
-                    <Button variant="primary" onClick={handleTailor} disabled={isAnalyzing}>
-                      Tailor Resume
-                    </Button>
-                  </div>
-                ) : null}
-                {tailorPhase !== "idle" && (
-                  <TailorResults
-                    tailorPhase={tailorPhase}
-                    tailorProgress={tailorProgress}
-                    rewrites={tailorRewrites}
-                    stats={tailorStats}
+              ) : extractionConfirmed &&
+                extractionResult &&
+                analysisPhase === "idle" ? (
+                <ResumeHealthCheck
+                  profession={extractionResult.profession}
+                  careerLevel={extractionResult.careerLevel}
+                  sectionCoverage={extractionResult.sectionCoverage}
+                  onAnalyze={handleAnalyze}
+                  isAnalyzing={isAnalyzing}
+                />
+              ) : analysisPhase === "computing_metrics" ? (
+                <Card padding="xl" className="text-center">
+                  <Spinner size="lg" className="mb-6" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                    Computing metrics...
+                  </h2>
+                  <p className="text-stone-500 text-lg">
+                    Analyzing word counts, bullet quality, and formatting.
+                  </p>
+                </Card>
+              ) : analysisPhase === "analyzing" ? (
+                <Card padding="xl" className="text-center">
+                  <Spinner size="lg" className="mb-6" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                    AI Analysis in Progress
+                  </h2>
+                  {analysisProgress && (
+                    <p className="text-stone-500 text-lg">
+                      Scoring: {analysisProgress.sectionTitle}
+                    </p>
+                  )}
+                </Card>
+              ) : analysisPhase === "complete" &&
+                analysisResult &&
+                extractionResult ? (
+                <div className="space-y-6">
+                  <AnalysisResults
+                    result={analysisResult}
                     sectionTitles={
                       new Map(
-                        extractionResult.document.sections.map((s) => [s.id, s.title]),
+                        extractionResult.document.sections.map((s) => [
+                          s.id,
+                          s.title,
+                        ]),
                       )
                     }
-                    onAccept={handleAcceptRewrite}
-                    onReject={handleRejectRewrite}
-                    onAcceptAll={handleAcceptAll}
-                    onRejectAll={handleRejectAll}
                   />
-                )}
-                <div className="text-center">
-                  {tailorPhase === "complete" && (
-                    <div className="mb-4">
-                      <Button variant="primary" onClick={handleOpenEditor}>
-                        Open Editor
+                  {tailorPhase === "idle" && jobDescription ? (
+                    <div className="text-center">
+                      <Button
+                        variant="primary"
+                        onClick={handleTailor}
+                        disabled={isAnalyzing}
+                      >
+                        Tailor Resume
                       </Button>
                     </div>
+                  ) : null}
+                  {tailorPhase !== "idle" && (
+                    <TailorResults
+                      tailorPhase={tailorPhase}
+                      tailorProgress={tailorProgress}
+                      rewrites={tailorRewrites}
+                      stats={tailorStats}
+                      sectionTitles={
+                        new Map(
+                          extractionResult.document.sections.map((s) => [
+                            s.id,
+                            s.title,
+                          ]),
+                        )
+                      }
+                      onAccept={handleAcceptRewrite}
+                      onReject={handleRejectRewrite}
+                      onAcceptAll={handleAcceptAll}
+                      onRejectAll={handleRejectAll}
+                    />
                   )}
-                  <Button variant="secondary" onClick={handleNewAnalysis}>
-                    Analyze Another Resume
-                  </Button>
+                  <div className="text-center">
+                    {tailorPhase === "complete" && (
+                      <div className="mb-4">
+                        <Button variant="primary" onClick={handleOpenEditor}>
+                          Open Editor
+                        </Button>
+                      </div>
+                    )}
+                    <Button variant="secondary" onClick={handleNewAnalysis}>
+                      Analyze Another Resume
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ) : isAnalyzing ? (
-              <Card padding="xl" className="text-center">
-                <Spinner size="lg" className="mb-6" />
-                <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  Processing your resume...
-                </h2>
-                <p className="text-stone-500 text-lg">
-                  Please wait while we analyze your document.
-                </p>
-              </Card>
-            ) : (
-              <DashboardTabs />
-            )}
-          </div>
-        )}
-      </div>
+              ) : isAnalyzing ? (
+                <Card padding="xl" className="text-center">
+                  <Spinner size="lg" className="mb-6" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                    Processing your resume...
+                  </h2>
+                  <p className="text-stone-500 text-lg">
+                    Please wait while we analyze your document.
+                  </p>
+                </Card>
+              ) : (
+                <DashboardTabs />
+              )}
+            </div>
+          )}
+        </div>
       )}
     </AppShell>
   );
